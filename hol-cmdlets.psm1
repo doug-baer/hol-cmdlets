@@ -57,16 +57,18 @@ if( Test-Path $holSettingsFile ) {
 	Write-Host "Unable to find $holSettingsFile - no default values configured"
 }
 
-##Aliases
-if( !(Get-Alias ovftool) ){
-	if( !(Test-Path $DEFAULT_OVFTOOLPATH) ) {
-		Write-Host -fore Red "!!! OVFtool not found: $DEFAULT_OVFTOOLPATH"
-		Return
-	} else {
-		New-Alias ovftool $DEFAULT_OVFTOOLPATH
+##Aliases (module-level)
+if( !(Test-Path $DEFAULT_OVFTOOLPATH) ) {
+	Write-Host -fore Red "!!! OVFtool not found: $DEFAULT_OVFTOOLPATH"
+	Return
+} else {
+	try {
+		New-Alias -Name ovftool -Value $DEFAULT_OVFTOOLPATH -ErrorAction 0
+	}
+	catch {
+		Get-Alias ovftool
 	}
 }
-
 
 Function SetHolPrompt {
 <#
@@ -940,7 +942,7 @@ Function Export-VPod {
 
 #>
 	PARAM (
-		$Key=$(throw "need -Key"),
+		$Key = $cloudKey,
 		$Catalog = $DEFAULT_SOURCECLOUDCATALOG,
 		$VPodName = $(throw "need -VPodName"), 
 		$LibPath = $DEFAULT_LOCALLIB,
@@ -951,17 +953,7 @@ Function Export-VPod {
 		[Switch]$Print
 	)
 	PROCESS {
-		#Check or create OVFtool alias
-<#		if( !(Get-Alias ovftool) ){
-			$toolPath = $DEFAULT_OVFTOOLPATH
-			if( !(Test-Path $toolPath) ) {
-				Write-Host -fore Red "!!! OVFtool not found: $toolPath"
-				Return
-			} else {
-				New-Alias ovftool $toolPath 
-		 	}
-		}
-#>
+
 		$ovfPath = Join-Path $LibPath $($VPodName + "\" + $VPodName + ".ovf")
 
 		#test path to OVF, bail if found: no clobbering
@@ -1043,18 +1035,7 @@ Function Import-VcdMedia {
 		$Options = ""
 	)
 	PROCESS {
-<#
-		#Check or create OVFtool alias
-		if( !(Get-Alias ovftool) ){
-			$toolPath = $DEFAULT_OVFTOOLPATH
-			if( !(Test-Path $toolPath) ) {
-				Write-Host -fore Red "!!! OVFtool not found: $toolPath"
-				Return
-			} else {
-				New-Alias ovftool $toolPath 
-			}
-		}
-#>
+
 		$mediaPath = Join-Path $LibPath $($MediaName + "." + $MediaType)
 
 		#test path, bail if not found
