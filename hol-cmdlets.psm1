@@ -57,38 +57,23 @@ if( Test-Path $holSettingsFile ) {
 	Write-Host "Unable to find $holSettingsFile - no default values configured"
 }
 
-
-
-#on module load, set the PowerShell console prompt to include the cloud name
-Function Prompt {Write-Host "HOL/$cloudKey " -nonewline -fore Green ; Write-Host ((Get-Location).Path + ">") -NoNewLine ; return " " }
-
-Function Get-CloudCreds {
-<#
-	Load credential objects used by Connect-Cloud
-
-	CREDENTIAL MANAGEMENT
-	$c = Get-Credential $username
-	$cf = Join-Path ( Split-Path $profile ) PS_cloud_cred
-	$c.Password | ConvertFrom-SecureString | Set-Content $cf
-#>
-	PARAM (
-		$UserName=$DEFAULT_CLOUDUSER
-	)
-
-	PROCESS {
-		If ($UserName -ne '' ) {
-			$cf = Join-Path ( Split-Path $profile ) PS_cloud_cred
-			$p = Get-Content $cf | ConvertTo-SecureString
-			$occ = New-Object System.Management.Automation.PsCredential $UserName , $p
-			
-			$cf = $null
-			$p = $null
-			Return $occ
-		} Else {
-			Write-Host -Fore Red "ERROR: -Username or $cloudUser required"
-		}
+##Aliases
+if( !(Get-Alias ovftool) ){
+	if( !(Test-Path $DEFAULT_OVFTOOLPATH) ) {
+		Write-Host -fore Red "!!! OVFtool not found: $DEFAULT_OVFTOOLPATH"
+		Return
+	} else {
+		New-Alias ovftool $DEFAULT_OVFTOOLPATH
 	}
-} #Get-CloudCreds
+}
+
+
+Function SetHolPrompt {
+<#
+	Set the prompt to include the $cloudkey variable (used for per-session defaults)
+#>
+	Function global:Prompt { Write-Host "HOL/$cloudKey " -nonewline -fore Green ; Write-Host ((Get-Location).Path + ">") -NoNewLine ; return " " }
+}
 
 
 Function Connect-Cloud {
@@ -98,10 +83,10 @@ Function Connect-Cloud {
 	It will default to using the $cloudKey variable defined in the current session
 #>
 	PARAM (
-		$Key=$cloudKey
+		$Key = $cloudKey
 	)
 	PROCESS {
-		If ( $Key -ne '' ) { 
+		if( $Key -ne '' ) { 
 			Write-host "Connecting to $($orgs[$Key]) in $($vcds[$Key])"
 			Connect-CIServer $($vcds[$Key]) -org $($orgs[$Key]) -credential $($creds[$Key])
 		} Else {
@@ -128,8 +113,8 @@ Function Add-CIVAppShadows {
 	Add-CIVAppShadows -o $orgVdcs -v $vApps
 #>
 	PARAM (
-		$vApps=$(throw "need -vApps"), 
-		$OrgVDCs=$(throw "need -OrgVdcs"),
+		$vApps = $(throw "need -vApps"), 
+		$OrgVDCs = $(throw "need -OrgVdcs"),
 		$SleepTime = 120,
 		[Switch]$DebugMe
 	)
@@ -202,8 +187,8 @@ Function Add-CIVAppShadowsWait {
 	Quick and dirty... no error checking.. can go infinite if the import fails
 #>
 	PARAM (
-		$vApp=$(throw "need -vApps"), 
-		$OrgVDCs=$(throw "need -OrgVdcs"),
+		$vApp = $(throw "need -vApps"), 
+		$OrgVDCs = $(throw "need -OrgVdcs"),
 		$SleepTime = 300
 	)
 	PROCESS {
@@ -863,7 +848,7 @@ Function Import-VPod {
 	Written for OVFTOOL 3.x ... works with 4.1.0
 #>
 	PARAM (
-		$Key=$cloudKey,
+		$Key = $cloudKey,
 		$Catalog = $DEFAULT_TARGETCLOUDCATALOG,
 		$VPodName = $(throw "need -VPodName"), 
 		$LibPath = $DEFAULT_LOCALLIB,
@@ -874,16 +859,6 @@ Function Import-VPod {
 		$MaxRetries = 5
 	)
 	PROCESS {
-		#Check or create OVFtool alias
-		if( !(Get-Alias ovftool) ){
-			$toolPath = 'C:\Program Files\VMware\vmware ovf tool\ovftool.exe'
-			if( !(Test-Path $toolPath) ) {
-				Write-Host -fore Red "!!! OVFtool not found: $toolPath"
-				Return
-			} else {
-				New-Alias ovftool $toolPath 
-			}
-		}
 
 		$ovfPath = Join-Path $LibPath $($VPodName + "\" + $VPodName + ".ovf")
 		
@@ -977,7 +952,7 @@ Function Export-VPod {
 	)
 	PROCESS {
 		#Check or create OVFtool alias
-		if( !(Get-Alias ovftool) ){
+<#		if( !(Get-Alias ovftool) ){
 			$toolPath = $DEFAULT_OVFTOOLPATH
 			if( !(Test-Path $toolPath) ) {
 				Write-Host -fore Red "!!! OVFtool not found: $toolPath"
@@ -986,7 +961,7 @@ Function Export-VPod {
 				New-Alias ovftool $toolPath 
 		 	}
 		}
-
+#>
 		$ovfPath = Join-Path $LibPath $($VPodName + "\" + $VPodName + ".ovf")
 
 		#test path to OVF, bail if found: no clobbering
@@ -1068,6 +1043,7 @@ Function Import-VcdMedia {
 		$Options = ""
 	)
 	PROCESS {
+<#
 		#Check or create OVFtool alias
 		if( !(Get-Alias ovftool) ){
 			$toolPath = $DEFAULT_OVFTOOLPATH
@@ -1078,7 +1054,7 @@ Function Import-VcdMedia {
 				New-Alias ovftool $toolPath 
 			}
 		}
-
+#>
 		$mediaPath = Join-Path $LibPath $($MediaName + "." + $MediaType)
 
 		#test path, bail if not found
