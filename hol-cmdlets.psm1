@@ -72,7 +72,7 @@ Function Get-CloudCreds {
 	$c.Password | ConvertFrom-SecureString | Set-Content $cf
 #>
 	PARAM (
-		$UserName=$cloudUser
+		$UserName=$DEFAULT_CLOUDUSER
 	)
 
 	PROCESS {
@@ -130,15 +130,14 @@ Function Add-CIVAppShadows {
 	PARAM (
 		$vApps=$(throw "need -vApps"), 
 		$OrgVDCs=$(throw "need -OrgVdcs"),
-		$SleepTime=120,
-		$Debug=$false
+		$SleepTime = 120,
+		[Switch]$DebugMe
 	)
 	
 	PROCESS {
 		$fiveHr = New-Object System.Timespan 5,0,0
 
 		foreach( $vApp in $vApps ) {
-			
 			#LEGACY - add Internet-Connect Metadata if Description matches pattern
 			if( $vApp.Description -like "*~" ) {
 				Write-Host -fore Green "** Adding vCD metadata for VLP to wire up **"
@@ -157,7 +156,7 @@ Function Add-CIVAppShadows {
 			
 			#create one shadow on each orgvdc
 			Write-Host -fore Green "Beginning shadows for $($vApp.Name) at $(Get-Date)"
-			Foreach ($orgVDC in $OrgVDCs) { 
+			foreach( $orgVDC in $OrgVDCs ) { 
 				$shadowName = $($($vApp.Name) + "_shadow_" + $($orgVDC.Name))
 				New-CIVApp -Name $shadowName -OrgVdc $orgVDC -VAppTemplate $vApp -RuntimeLease $fiveHr -StorageLease $fiveHr -RunAsync | Out-Null
 				Write-Host "==> Creating $shadowName"
@@ -166,19 +165,19 @@ Function Add-CIVAppShadows {
 			#pulling the "Status" from the object returned by New-vApp isn't right. This works.
 			$shadows = @{}
 			$shadowPattern = $($vApp.Name) + "_shadow_*"
-			If($Debug) { Write-Host -Fore Yellow "DEBUG: looking for $shadowPattern" }
-			Foreach ($shadow in $(Get-CIVApp $shadowPattern)) { 
+			if( $DebugMe ) { Write-Host -Fore Yellow "DEBUG: looking for $shadowPattern" }
+			foreach( $shadow in $(Get-CIVApp $shadowPattern) ) { 
 				$shadows.Add( $shadow.Name , $(Get-CIView -CIObject $shadow) )
 			}
 
 			#wait for all shadows of this template to complete before starting on next one
-			While ( $shadows.Count -gt 0 ) {
+			while( $shadows.Count -gt 0 ) {
 				#working around a Powershell quirk related to enumerating and modification
 				$keys = $shadows.Clone().Keys
 
-				Foreach ($key in $keys ) {
+				foreach( $key in $keys ) {
 					$shadows[$key].UpdateViewData()		
-					If ($shadows[$key].Status -ne 0 ) { 
+					if( $shadows[$key].Status -ne 0 ) { 
 						#has completed (status=8 is good), remove it from the waitlist
 						Write-Host "==> Finished $key with status $($shadows[$key].Status), $($shadows.count - 1) to go." 
 						$shadows.Remove($key)
@@ -186,8 +185,8 @@ Function Add-CIVAppShadows {
 				}
 
 				#sleep between checks
-				If( $shadows.Count -gt 0 ) {
-					If($Debug) { Write-Host -Fore Yellow "DEBUG: Sleeping 120 sec at $(Get-Date)" }
+				if( $shadows.Count -gt 0 ) {
+					if( $DebugMe ) { Write-Host -Fore Yellow "DEBUG: Sleeping 120 sec at $(Get-Date)" }
 					Sleep -sec $SleepTime
 				}
 			}
@@ -205,10 +204,10 @@ Function Add-CIVAppShadowsWait {
 	PARAM (
 		$vApp=$(throw "need -vApps"), 
 		$OrgVDCs=$(throw "need -OrgVdcs"),
-		$SleepTime=300
+		$SleepTime = 300
 	)
 	PROCESS {
-		while ($vApp.status -ne "Resolved") {
+		while( $vApp.status -ne "Resolved" ) {
 			write-host "$($vApp.status) : $(($vApp.ExtensionData.Tasks).Task[0].Progress)% complete"
 			Sleep -sec $SleepTime
 			$vApp = Get-civapptemplate $vApp.name -catalog $vApp.catalog
@@ -297,7 +296,7 @@ Function Compare-CatalogToDirectory {
 		$ServerName = $(throw "need -ServerName"),
 		$OrgName = $(throw "need -OrgName"),
 		$CatalogName = $(throw "need -CatalogName"),
-		$LibraryPath = $(throw "need -LibraryPath")
+		$LibraryPath = $DEFAULT_LOCALLIB
 	)
 	PROCESS {
 		try { 
@@ -359,7 +358,7 @@ Function Compare-DirectoryToCatalog {
 		$ServerName = $(throw "need -ServerName"),
 		$OrgName = $(throw "need -OrgName"),
 		$CatalogName = $(throw "need -CatalogName"),
-		$LibraryPath = $(throw "need -LibraryPath")
+		$LibraryPath = $DEFAULT_LOCALLIB
 	)
 
 	PROCESS {
@@ -864,12 +863,12 @@ Function Import-VPod {
 	Written for OVFTOOL 3.x ... works with 4.1.0
 #>
 	PARAM (
-		$Key=$(throw "need -Key"),
-		$Catalog = "",
+		$Key=$cloudKey,
+		$Catalog = $DEFAULT_TARGETCLOUDCATALOG,
 		$VPodName = $(throw "need -VPodName"), 
-		$LibPath = $(throw "need -LibPath"),
-		$User = $(throw "need -User"),
-		$Password = '',
+		$LibPath = $DEFAULT_LOCALLIB,
+		$User = $DEFAULT_CLOUDUSER,
+		$Password = $DEFAULT_CLOUDPASSWORD,
 		$AlternateName = '',
 		$Options = '--allowExtraConfig',
 		$MaxRetries = 5
@@ -967,20 +966,19 @@ Function Export-VPod {
 #>
 	PARAM (
 		$Key=$(throw "need -Key"),
-		$Catalog = "",
+		$Catalog = $DEFAULT_SOURCECLOUDCATALOG,
 		$VPodName = $(throw "need -VPodName"), 
-		$LibPath = $(throw "need -LibPath"),
-		$User = $(throw "need -User"),
-		$Password = $(throw "need -Password"),
+		$LibPath = $DEFAULT_LOCALLIB,
+		$User = $DEFAULT_CLOUDUSER,
+		$Password = $DEFAULT_CLOUDPASSWORD,
 		$MaxRetries = 20,
-		$Clean = $true,
 		$Options = '--exportFlags=preserveIdentity --allowExtraConfig',
 		[Switch]$Print
 	)
 	PROCESS {
 		#Check or create OVFtool alias
 		if( !(Get-Alias ovftool) ){
-			$toolPath = 'C:\Program Files\VMware\vmware ovf tool\ovftool.exe'
+			$toolPath = $DEFAULT_OVFTOOLPATH
 			if( !(Test-Path $toolPath) ) {
 				Write-Host -fore Red "!!! OVFtool not found: $toolPath"
 				Return
@@ -1059,20 +1057,20 @@ Function Import-VcdMedia {
 	Will attempt to resume until successful completion (or 20x)
 #>
 	PARAM (
-		$Key=$(throw "need -Key"),
-		$Catalog="",
-		$MediaName=$(throw "need -MediaName"), 
-		$MediaType='iso',
-		$LibPath=$(throw "need -LibPath"),
-		$User=$(throw "need -User"),
-		$Password="",
-		$OvDC="",
-		$Options=""	
+		$Key = $(throw "need -Key"),
+		$Catalog = "",
+		$MediaName = $(throw "need -MediaName"), 
+		$MediaType = 'iso',
+		$LibPath = $(throw "need -LibPath"),
+		$User = $DEFAULT_CLOUDUSER,
+		$Password = $DEFAULT_CLOUDPASSWORD,
+		$OvDC = "",
+		$Options = ""
 	)
 	PROCESS {
 		#Check or create OVFtool alias
 		if( !(Get-Alias ovftool) ){
-			$toolPath = 'C:\Program Files\VMware\vmware ovf tool\ovftool.exe'
+			$toolPath = $DEFAULT_OVFTOOLPATH
 			if( !(Test-Path $toolPath) ) {
 				Write-Host -fore Red "!!! OVFtool not found: $toolPath"
 				Return
@@ -1152,7 +1150,10 @@ Function Import-VcdMedia {
 
 Function Test-CIVAppTemplateCustomization {
 <#
+	### HOL-specific use case ###
+	Limited use function for reporting purposes.
 	Checks the 'CustomizeOnInstantiate' flag on a checked-in vAppTemplate or catalog full of templates
+	Assumes login to ONLY one cloud
 #>
 	PARAM(
 		$Template="",
@@ -1189,8 +1190,8 @@ Function Add-InternetMetadata {
 	Update 08/2015 to allow specification of catalog name 
 #>
 	PARAM (
-		$VPodName=$(throw "need -vPodName"),
-		$CatalogName='HOL-Masters'
+		$VPodName = $(throw "need -vPodName"),
+		$CatalogName = $DEFAULT_TARGETCLOUDCATALOG
 	)
 	PROCESS {
 		$vp = Get-CIVAppTemplate $VPodName -Catalog $CatalogName
@@ -1220,7 +1221,7 @@ Function Get-VmdkHashes {
 <#
 	Create a list of SHA1 hashes for the VMDKs at a given path
 	Write the list to vpodName-<SITENAME>.hash at the root of the VPODPATH
-	And compare against values in Manifest
+	...And compare against values in Manifest (victim of scope creep)
 	HashAlgorithm defaults to SHA1, which is used by ovftool in the Manifest file
 	Requires Powershell 4.0 or higher
 #>
@@ -1301,7 +1302,7 @@ Function Get-VmdkHashes {
 
 Function Get-CloudInfoFromKey {
 <#
-	Lookup Internal Cloud Info (host, org) when passed a cloudKey
+	Lookup module internal Cloud Info (host, org) when passed a cloudKey
 	Returns an array containing the two values, in that order.
 #>
 	PARAM(
@@ -1324,7 +1325,7 @@ Function Test-OvfDisk {
 .EXAMPLE
 	Test-OvfDisk -OVF 'E:\HOL-Library\MyPod\MyPod.ovf'
 .EXAMPLE
-	Test-OvfDisk -OVF 'E:\HOL-Library\MyPod\MyPod.ovf' -Dbg
+	Test-OvfDisk -OVF 'E:\HOL-Library\MyPod\MyPod.ovf' -DebugMe
 .EXAMPLE
 	Get-ChildItem E:\HOL-Library -Recurse -Filter '*.ovf' | Test-OvfDisk
 
@@ -1333,7 +1334,7 @@ Function Test-OvfDisk {
 		[Parameter(Position=0,Mandatory=$true,HelpMessage="Path to the OVF",
 		ValueFromPipeline=$true)]
 		$OVF,
-		[Switch]$Dbg
+		[Switch]$DebugMe
 	)
 	PROCESS {
 		if( $OVF.GetType().ToString() -eq "System.IO.FileInfo" ) { $OVF = $OVF.FullName }
@@ -1362,7 +1363,7 @@ Function Test-OvfDisk {
 			
 			
 			if( $diskSizeDifference -lt 0 ) {
-				if( $Dbg ) {
+				if( $DebugMe ) {
 					Write-Host -fore Green "BEFORE"
 					Write-Host -Fore Yellow "`tSPECIFIED:  $diskSpecifiedSize"
 					Write-Host -Fore Yellow "`tPOPULATED:  $diskRequiredSize"
@@ -1375,7 +1376,7 @@ Function Test-OvfDisk {
 				$disksToResize.Add($diskID, $diskSpecifiedSize + $increaseMB * 1MB)
 				$diskCapacity += $increaseMB
 
-				if( $Dbg ) {
+				if( $DebugMe ) {
 					Write-Host -fore Green "AFTER"
 					Write-Host -Fore Yellow "`tSPECIFIED:  $($diskCapacity * 1MB)"
 					Write-Host -Fore Yellow "`tPOPULATED:  $diskRequiredSize"
@@ -1391,7 +1392,7 @@ Function Test-OvfDisk {
 
 Function Show-VpodVersions {
 <#
-	Query HOL Clouds return presence + version of each one matching VpodFilter
+	Query Clouds and return presence + version(s) of each one matching VpodFilter
 	Assumes $LibPath is authoritative regarding which SKUs should be reported.
 
 	*** Must be authenticated to all $Clouds prior to running this function
@@ -1402,7 +1403,6 @@ Function Show-VpodVersions {
 		$LibPath = $DEFAULT_LOCALLIB,
 		$VpodFilter = '*'
 	)
-	
 	BEGIN {
 		#Setup variables to collect the data
 		$report = @{}
@@ -1424,7 +1424,6 @@ Function Show-VpodVersions {
 		}
 	}
 	PROCESS {
-
 		foreach( $cloud in $Clouds ) {
 			$cloudName = (Get-CloudInfoFromKey -Key $cloud)[0]
 			$orgName = (Get-CloudInfoFromKey -Key $cloud)[1]
@@ -1471,6 +1470,7 @@ Function Show-VpodVersions {
 
 Function Test-PowerCLI {
 <#
+	WORK IN PROGRESS
 	Check for VMware PowerCLI modules -- I care mostly about the Cloud module
 #>
 	if( (Get-Module | where { $_.name -like 'VMware.VimAutomation.Cloud' }).Count -gt 0 ) {
@@ -1483,7 +1483,8 @@ Function Test-PowerCLI {
 
 Function Import-PowerCLI {
 <#
-	Import PowerCLI commands (v6.0+) ... still working on this one
+	WORK IN PROGRESS
+	Import PowerCLI commands (v6.0+)
 #>
 	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
 	. 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
@@ -1491,7 +1492,7 @@ Function Import-PowerCLI {
 }
 
 ###########################################################################
-### The following require SYSADMIN access and came from Clint Kitson @ EMC
+### The following require SYSADMIN access and I think came from Clint Kitson @ EMC
 
 Function Get-CIVMShadow {
 <#
