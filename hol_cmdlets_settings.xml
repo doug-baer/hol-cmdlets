@@ -1,0 +1,47 @@
+<?xml version="1.0"?>
+<!-- This is a sample/skeleton config file that must be modified to fit your needs -->
+<Settings>
+	<Clouds>
+		<Cloud>
+			<key>DEV-CLOUD</key>
+			<host>devcloud.vmware.com</host>
+			<org>HOL</org>
+			<ovdc>HOL-Dev-ovDC1</ovdc>
+			<catalog>HOL-Final</catalog>
+		</Cloud>
+		<Cloud>
+			<key>USER-CLOUD</key>
+			<host>usercloud.vmware.com</host>
+			<org>HOL</org>
+			<ovdc>HOL-user-ovDC1</ovdc>
+			<catalog>HOL-Master-Templates</catalog>
+		</Cloud>
+	</Clouds>
+	<VPodSettings>
+		<Metadata>
+			<WireUp>HOL-HBD-1681</WireUp>
+			<WireUp>HOL-MBL-1657-1658</WireUp>
+		</Metadata>
+	</VPodSettings>
+	<Defaults>
+		<CatalogHost>HOL-MASTER-CATALOG</CatalogHost>
+		<RemoteLib>/cygdrive/x/Master-Library</RemoteLib>
+		<LocalLib>X:\Main-Library</LocalLib>
+		<LocalSeed>X:\Template-Seeds</LocalSeed>
+		<SSHuser>replication-ssh-user</SSHuser>
+		<OutputPath>X:\Logs</OutputPath>
+		<RemoteMailboxPath>/cygdrive/x/Mailbox/</RemoteMailboxPath>
+		<MailboxPath>X:\Mailbox</MailboxPath>
+		<SourceCloudKey>DEV-CLOUD</SourceCloudKey>
+		<SourceCloudCatalog>HOL-Final</SourceCloudCatalog>
+		<TargetCloudCatalog>HOL-Master-Templates</TargetCloudCatalog>
+		<CloudUser>hol-catalog-manager</CloudUser>
+		<CloudPassword>DEFAULT-PASSWORD</CloudPassword>
+		<SmtpServer>mail.nowhere.net</SmtpServer>
+		<EmailSender>hol@nowhere.net</EmailSender>
+		<SleepSeconds>600</SleepSeconds>
+		<MinCatalogSpaceGb>25</MinCatalogSpaceGb>
+		<OvfToolPath>C:\Program Files\VMware\vmware ovf tool\ovftool.exe</OvfToolPath>
+		<HolCmdletsPath>X:\Scripts\hol-cmdlets.psd1</HolCmdletsPath>
+	</Defaults>
+</Settings>
