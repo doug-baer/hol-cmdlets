@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2015 October 23
+### 2015 October 27
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -44,8 +44,6 @@ if( Test-Path $holSettingsFile ) {
 	$DEFAULT_SOURCECLOUDKEY = $SettingsFile.Settings.Defaults.SourceCloudKey
 	$DEFAULT_SOURCECLOUDCATALOG = $SettingsFile.Settings.Defaults.SourceCloudCatalog
 	$DEFAULT_TARGETCLOUDCATALOG = $SettingsFile.Settings.Defaults.TargetCloudCatalog
-	$DEFAULT_CLOUDUSER = $SettingsFile.Settings.Defaults.CloudUser
-	$DEFAULT_CLOUDPASSWORD = $SettingsFile.Settings.Defaults.CloudPassword
 	$DEFAULT_REMOTEMAILBOXPATH = $SettingsFile.Settings.Defaults.RemoteMailboxPath
 	$DEFAULT_SMTPSERVER = $SettingsFile.Settings.Defaults.SmtpServer
 	$DEFAULT_EMAILSENDER = $SettingsFile.Settings.Defaults.EmailSender
@@ -53,6 +51,20 @@ if( Test-Path $holSettingsFile ) {
 	$DEFAULT_CATALOGFREESPACE = $SettingsFile.Settings.Defaults.MinCatalogSpaceGb
 	$DEFAULT_OVFTOOLPATH = $SettingsFile.Settings.Defaults.OvfToolPath
 	$DEFAULT_HOLCMDLETSPATH = $SettingsFile.Settings.Defaults.HolCmdletsPath
+
+<#
+NOTE: To Store the password encrypted for use here:
+		$c = Get-Credential $DEFAULT_CLOUDUSER
+		$c.Password | ConvertFrom-SecureString | Set-Content $DEFAULT_CLOUDCREDENTIAL
+#>
+
+	$DEFAULT_CLOUDUSER = $SettingsFile.Settings.Defaults.CloudUser
+	$DEFAULT_CLOUDPASSWORD = $SettingsFile.Settings.Defaults.CloudPassword
+	$DEFAULT_CLOUDCREDENTIAL = $SettingsFile.Settings.Defaults.CloudCredential
+	if( ($DEFAULT_CLOUDPASSWORD -eq '') -and (Test-Path $DEFAULT_CLOUDCREDENTIAL) ) {
+		$cred = New-Object System.Management.Automation.PsCredential $DEFAULT_CLOUDUSER , $(Get-Content $DEFAULT_CLOUDCREDENTIAL | ConvertTo-SecureString)
+		$DEFAULT_CLOUDPASSWORD = ($cred.GetNetworkCredential()).Password
+	}
 } else {
 	Write-Host "Unable to find $holSettingsFile - no default values configured"
 }
@@ -1489,3 +1501,11 @@ Function Set-CIVAppTemplateConsolidate {
 		}
 	}
 } #Set-CIVAppTemplateConsolidate
+
+Function Test-CloudCredential {
+
+	Write-Host "Cloud Credential: $DEFAULT_CLOUDCREDENTIAL"
+	Write-Host "Cloud User: $DEFAULT_CLOUDUSER"
+	Write-Host "Cloud Password: $DEFAULT_CLOUDPASSWORD"
+
+} #Test-CloudCredential

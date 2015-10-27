@@ -1,4 +1,4 @@
-# Version 1.5.4 - 23 October 2015
+# Version 1.5.5 - 27 October 2015
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -15,8 +15,6 @@ if( Test-Path $holSettingsFile ) {
 	$DEFAULT_SOURCECLOUDKEY = $SettingsFile.Settings.Defaults.SourceCloudKey
 	$DEFAULT_SOURCECLOUDCATALOG = $SettingsFile.Settings.Defaults.SourceCloudCatalog
 	$DEFAULT_TARGETCLOUDCATALOG = $SettingsFile.Settings.Defaults.TargetCloudCatalog
-	$DEFAULT_CLOUDUSER = $SettingsFile.Settings.Defaults.CloudUser
-	$DEFAULT_CLOUDPASSWORD = $SettingsFile.Settings.Defaults.CloudPassword
 	$DEFAULT_REMOTEMAILBOXPATH = $SettingsFile.Settings.Defaults.RemoteMailboxPath
 	$DEFAULT_SMTPSERVER = $SettingsFile.Settings.Defaults.SmtpServer
 	$DEFAULT_EMAILSENDER = $SettingsFile.Settings.Defaults.EmailSender
@@ -24,6 +22,15 @@ if( Test-Path $holSettingsFile ) {
 	$DEFAULT_CATALOGFREESPACE = $SettingsFile.Settings.Defaults.MinCatalogSpaceGb
 	$DEFAULT_OVFTOOLPATH = $SettingsFile.Settings.Defaults.OvfToolPath
 	$DEFAULT_HOLCMDLETSPATH = $SettingsFile.Settings.Defaults.HolCmdletsPath
+	
+	#Credential Management
+	$DEFAULT_CLOUDUSER = $SettingsFile.Settings.Defaults.CloudUser
+	$DEFAULT_CLOUDPASSWORD = $SettingsFile.Settings.Defaults.CloudPassword
+	$DEFAULT_CLOUDCREDENTIAL = $SettingsFile.Settings.Defaults.CloudCredential
+	if( ($DEFAULT_CLOUDPASSWORD -eq '') -and (Test-Path $DEFAULT_CLOUDCREDENTIAL) ) {
+		$cred = New-Object System.Management.Automation.PsCredential $DEFAULT_CLOUDUSER , $(Get-Content $DEFAULT_CLOUDCREDENTIAL | ConvertTo-SecureString)
+		$DEFAULT_CLOUDPASSWORD = ($cred.GetNetworkCredential()).Password
+	}
 } else {
 	Write-Host "Unable to find $holSettingsFile - no default values configured"
 }

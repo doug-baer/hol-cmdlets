@@ -37,6 +37,7 @@
 		<TargetCloudCatalog>HOL-Master-Templates</TargetCloudCatalog>
 		<CloudUser>hol-catalog-manager</CloudUser>
 		<CloudPassword>DEFAULT-PASSWORD</CloudPassword>
+		<CloudCredential>X:\Scripts\MY_CLOUD_CREDENTIAL</CloudCredential>
 		<SmtpServer>mail.nowhere.net</SmtpServer>
 		<EmailSender>hol@nowhere.net</EmailSender>
 		<SleepSeconds>600</SleepSeconds>
