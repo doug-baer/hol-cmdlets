@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2015 October 27
+### 2015 November 3
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -398,7 +398,7 @@ Function Compare-DirectoryToCatalog {
 			#Return the vPod names on the pipeline for further processing
 			Return $($vAppList.Keys | Sort)
 		} else {
-				Write-Host "No vApp Templates exist in $LibraryPath and not $CatalogName"
+			Write-Host "No vApp Templates exist in $LibraryPath and not $CatalogName"
 			Return
 		}
 	}
@@ -1271,15 +1271,15 @@ Function Get-VmdkHashes {
 
 Function Get-CloudInfoFromKey {
 <#
-	Lookup module internal Cloud Info (host, org) when passed a cloudKey
-	Returns an array containing the two values, in that order.
+	Lookup module internal Cloud Info (host, org, catalog) when passed a cloudKey
+	Returns an array containing the three values, in that order.
 #>
 	PARAM(
 		$Key = $(throw "need -Key to lookup")
 	)
 	PROCESS {
 		if( $vcds.ContainsKey($Key) ) {
-			Return ($($vcds[$Key]),$($orgs[$Key]))
+			Return ($($vcds[$Key]),$($orgs[$Key]),$($catalogs[$Key]))
 		} else {
 			Return
 		}
@@ -1509,3 +1509,42 @@ Function Test-CloudCredential {
 	Write-Host "Cloud Password: $DEFAULT_CLOUDPASSWORD"
 
 } #Test-CloudCredential
+
+
+## Manage vCD Catalog vs. Local Export library
+
+Function Sync-DirectoryToCatalog {
+<#
+	Sync a directory of exports (a "Library") to a vCD catalog.
+	Assumes directory is authoritative source of vApp Templates.
+
+	Requires being logged in to the (one) cloud in question.
+
+#>
+	PARAM(
+		$Key = $cloudKey,
+		$CatalogName = '',
+		$LibraryPath = $DEFAULT_LOCALLIB,
+		$UserName = $DEFAULT_CLOUDUSER,
+		$Password = $DEFAULT_CLOUDPASSWORD
+	)
+	PROCESS {
+		if( $LibraryPath -eq '' ) {
+			Throw "Need -LibraryPath to identify source Library"
+		}
+		if( $Key -eq '' ) {
+			Throw "Need -Key CLOUD or defined $cloudKey to identify the cloud"
+		} else {
+			($serverName, $orgName, $CatalogName) = Get-CloudInfoFromKey -Key $Key
+			if( $CatalogName -eq '' ) {
+				Throw "Need -CatalogName to identify target vCD Catalog name"
+			}
+
+			$podsToUpload = Compare-DirectoryToCatalog -ServerName $serverName -OrgName $orgName -CatalogName $CatalogName -LibraryPath $LibraryPath
+		
+		foreach( $pod in $podsToUpload ) {
+			Write-Host "Uploading $pod from $LibraryPath to $CaatalogName"
+			Import-VPod -Key $Key -CatalogName $CatalogName -VPodName $pod -LibPath $LibraryPath -User $UserName -Password $Password
+		}
+	}
+} #Sync-DirectoryToCatalog
