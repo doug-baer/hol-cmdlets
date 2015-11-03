@@ -1511,7 +1511,7 @@ Function Test-CloudCredential {
 } #Test-CloudCredential
 
 
-## Manage vCD Catalog vs. Local Export library
+#### Manage vCD Catalog vs. Local Export library
 
 Function Sync-DirectoryToCatalog {
 <#
@@ -1543,9 +1543,66 @@ Function Sync-DirectoryToCatalog {
 			$podsToUpload = Compare-DirectoryToCatalog -ServerName $serverName -OrgName $orgName -CatalogName $CatalogName -LibraryPath $LibraryPath
 		
 			foreach( $pod in $podsToUpload ) {
-				Write-Host "Uploading $pod from $LibraryPath to $CaatalogName"
-				Import-VPod -Key $Key -CatalogName $CatalogName -VPodName $pod -LibPath $LibraryPath -User $UserName -Password $Password
+				Write-Host "Uploading $pod from $LibraryPath to $CatalogName"
+				Import-VPod -Key $Key -Catalog $CatalogName -VPodName $pod -LibPath $LibraryPath -User $UserName -Password $Password
 			}
 		}
 	}
 } #Sync-DirectoryToCatalog
+
+
+#### Manage vCD Catalog vs. Local Export library
+
+Function Sync-CatalogToDirectory {
+<#
+	Sync a vCD Catalog to a directory of exports (a "Library").
+	Assumes catalog is authoritative source of vApp Templates.
+
+	Requires being logged in to the (one) cloud in question .
+
+#>
+	PARAM(
+		$Key = $cloudKey,
+		$CatalogName = '',
+		$LibraryPath = $DEFAULT_LOCALLIB,
+		$UserName = $DEFAULT_CLOUDUSER,
+		$Password = $DEFAULT_CLOUDPASSWORD
+	)
+	PROCESS {
+		if( $LibraryPath -eq '' ) {
+			Throw "Need -LibraryPath to identify target Library"
+		}
+
+		try { 
+			$lib = Get-Item $LibraryPath -ErrorAction "Stop"
+			$libDrive = ($lib.Root.name).Substring(0,2)
+		}
+		catch {
+			Write-Host -ForegroundColor Red "FAIL: $LibraryPath does not exist."
+			Return
+		}
+
+		if( $Key -eq '' ) {
+			Throw "Need -Key CLOUD or defined $cloudKey to identify the cloud"
+		} else {
+			($serverName, $orgName, $CatalogName) = Get-CloudInfoFromKey -Key $Key
+			if( $CatalogName -eq '' ) {
+				Throw "Need -CatalogName to identify source vCD Catalog name"
+			}
+
+			$podsToDownload = Compare-CatalogToDirectory -ServerName $serverName -OrgName $orgName -CatalogName $CatalogName -LibraryPath $LibraryPath
+		
+			foreach( $pod in $podsToDownload ) {
+				Write-Host "Checking library capacity: "
+				$currentFreeSpaceGb = gwmi win32_logicaldisk | where { $_.DeviceID -like $libDrive } | select DeviceID, @{LABEL='GBfreespace';EXPRESSION={ ($_.freespace/1GB)} }
+
+				if( $currentFreeSpaceGb -lt $DEFAULT_CATALOGFREESPACE ) {
+					Write-Host -Foreground Red "WARNING: Library capacity below threshold: $DEFAULT_CATALOGFREESPACE GB, halting exports"
+					Return
+				}
+				Write-Host "Exporting $pod from $CatalogName to $LibraryPath"
+				Export-VPod -Key $Key -Catalog $CatalogName -VPodName $pod -LibPath $LibraryPath -User $UserName -Password $Password
+			}
+		}
+	}
+} #Sync-CatalogToDirectory
