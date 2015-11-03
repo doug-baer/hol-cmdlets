@@ -1535,11 +1535,14 @@ Function Sync-DirectoryToCatalog {
 		if( $Key -eq '' ) {
 			Throw "Need -Key CLOUD or defined $cloudKey to identify the cloud"
 		} else {
-			($serverName, $orgName, $CatalogName) = Get-CloudInfoFromKey -Key $Key
+			($serverName, $orgName, $defaultCatalogName) = Get-CloudInfoFromKey -Key $Key
 			if( $CatalogName -eq '' ) {
-				Throw "Need -CatalogName to identify target vCD Catalog name"
+				if( $defaultCatalogName -eq '' ) {
+					Throw "Need -CatalogName to identify source vCD Catalog name"
+				} else {
+					$CatalogName = $defaultCatalogName
+				}
 			}
-
 			$podsToUpload = Compare-DirectoryToCatalog -ServerName $serverName -OrgName $orgName -CatalogName $CatalogName -LibraryPath $LibraryPath
 		
 			foreach( $pod in $podsToUpload ) {
@@ -1585,23 +1588,26 @@ Function Sync-CatalogToDirectory {
 		if( $Key -eq '' ) {
 			Throw "Need -Key CLOUD or defined $cloudKey to identify the cloud"
 		} else {
-			($serverName, $orgName, $CatalogName) = Get-CloudInfoFromKey -Key $Key
+			($serverName, $orgName, $defaultCatalogName) = Get-CloudInfoFromKey -Key $Key
 			if( $CatalogName -eq '' ) {
-				Throw "Need -CatalogName to identify source vCD Catalog name"
+				if( $defaultCatalogName -eq '' ) {
+					Throw "Need -CatalogName to identify source vCD Catalog name"
+				} else {
+					$CatalogName = $defaultCatalogName
+				}
 			}
-
 			$podsToDownload = Compare-CatalogToDirectory -ServerName $serverName -OrgName $orgName -CatalogName $CatalogName -LibraryPath $LibraryPath
 		
 			foreach( $pod in $podsToDownload ) {
-				Write-Host "Checking library capacity: "
-				$currentFreeSpaceGb = gwmi win32_logicaldisk | where { $_.DeviceID -like $libDrive } | select DeviceID, @{LABEL='GBfreespace';EXPRESSION={ ($_.freespace/1GB)} }
+				Write-Host "Checking library capacity... "
+				$volumeSpace = gwmi win32_logicaldisk | where { $_.DeviceID -like $libDrive } | select DeviceID, @{LABEL='GBfreespace';EXPRESSION={ ($_.freespace/1GB)} }
 
-				if( $currentFreeSpaceGb -lt $DEFAULT_CATALOGFREESPACE ) {
+				if( $volumeSpace.GBfreespace -lt $DEFAULT_CATALOGFREESPACE ) {
 					Write-Host -Foreground Red "WARNING: Library capacity below threshold: $DEFAULT_CATALOGFREESPACE GB, halting exports"
 					Return
 				}
 				Write-Host "Exporting $pod from $CatalogName to $LibraryPath"
-				Export-VPod -Key $Key -Catalog $CatalogName -VPodName $pod -LibPath $LibraryPath -User $UserName -Password $Password
+				Export-VPod -Key $Key -Catalog $CatalogName -VPodName $($pod.Name) -LibPath $LibraryPath -User $UserName -Password $Password
 			}
 		}
 	}
