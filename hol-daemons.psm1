@@ -829,26 +829,39 @@ Function Start-OvfTemplatePull {
 		
 		If( -not (Test-Path $newOvfPath) ) {
 			# sanity check: we just created this directory, so OVF should not be here
-			## GO GET IT VIA SSH
+			## GO GET IT VIA RSYNC OVER SSH
 			$ovfFileRemoteEsc = doubleEscapePathSpaces $($RemoteLib + $NewName + "/" + $NewName + ".ovf")
 			$newOvfPathC = cygwinPath $newOvfPath
-			$command = "C:\cygwin64\bin\bash.exe --login -c 'scp "+ $sshOptions + $SSHuser + "@" + $sshComputer + ':"' + $ovfFileRemoteEsc + '" "' + $newOvfPathC +'"' +"'"
+#			$command = "C:\cygwin64\bin\bash.exe --login -c 'scp "+ $sshOptions + $SSHuser + "@" + $sshComputer + ':"' + $ovfFileRemoteEsc + '" "' + $newOvfPathC +'"' +"'"
+## NEW COMMAND
+			$rsyncOpts = '-tvhPrI --no-perms --chmod=ugo=rwX'
+			$syncCmd = "rsync $rsyncOpts " + $SSHuser + "@" + $sshComputer + ':"' + $ovfFileRemoteEsc + '" "' + $newOvfPathC + '"'
+			$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
+## NEW COMMAND
 	
 			if( $debug ) { Write-Host $command }
 			if( $createFile ) { $command | Out-File $fileName -append } 
 	
-			Write-Host "Getting new OVF via SCP..."
+			Write-Host "Getting new OVF via SSH..."
 			Invoke-Expression -command $command 
 		}
 	
 		## second check -- see if we successfully downloaded it
 		if( -not (Test-Path $newOvfPath) ) {
-			Write-Host -Fore Red "Error: Unable to read new OVF @ $newOvfPath"
+			Write-Host -Fore Red "Error: Unable to find new OVF @ $newOvfPath"
 			CleanupAndExit
 		}
 	 
 		#here, we have a copy of the new OVF in the new location
-		[xml]$new = Get-Content $newOvfPath
+		#need to trap here in case file permissions prevent us from reading it
+		try {
+			[xml]$new = Get-Content $newOvfPath -ErrorAction 1
+		}
+		catch {
+			Write-Host -Fore Red "Error: Unable to read new OVF @ $newOvfPath [permissions?]"
+			CleanupAndExit
+		}
+		
 		$newfiles = $new.Envelope.References.File
 		$newvAppName = $new.Envelope.VirtualSystemCollection.Name 
 	
@@ -1004,7 +1017,8 @@ Function Start-OvfTemplatePull {
 		} 
 		else { 
 			# BEWARE: this is a "real" rsync .. it can delete things!
-			$rsyncOpts = '-tvhPrI --stats --delete --max-delete=6' 
+			# updated 2015-Nov-18 to reset the file permissions to target defaults
+			$rsyncOpts = '-tvhPrI --stats --delete --max-delete=6  --no-perms --chmod=ugo=rwX' 
 		}
 	
 		#rsync needs SSH path to be double-quoted AND double-escaped:
@@ -1019,7 +1033,7 @@ Function Start-OvfTemplatePull {
 	# $targetPathRsyncEsc = doubleEscapePathSpaces $($TargetPath + $newvAppName)
 		$targetPathRsyncEsc = $($localLibPathC + $newvAppName).Replace(" ","\ ")
 		
-		$syncCmd = "rsync $rsyncOpts " + $SSHuser + "@"	+ $sshComputer + ':"' + $remotePathRsyncEsc + '/" "' + $targetPathRsyncEsc + '"'
+		$syncCmd = "rsync $rsyncOpts " + $SSHuser + "@" + $sshComputer + ':"' + $remotePathRsyncEsc + '/" "' + $targetPathRsyncEsc + '"'
 	
 		$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
 	

@@ -46,3 +46,10 @@
 		<HolCmdletsPath>X:\Scripts\hol-cmdlets.psd1</HolCmdletsPath>
 	</Defaults>
 </Settings>
+
+<!--
+NOTE: To store the password encrypted for use here:
+		$c = Get-Credential $DEFAULT_CLOUDUSER
+		$c.Password | ConvertFrom-SecureString | Set-Content $DEFAULT_CLOUDCREDENTIAL
+-->
+
