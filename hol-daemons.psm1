@@ -1,4 +1,4 @@
-# Version 1.6.0 - 4 December 2015
+# Version 1.6.1 - 8 December 2015
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -302,7 +302,7 @@ Function Start-HolVpodExportDaemon {
 					#Spawn jobs with Add-CIVappShadowsWait for each $TargetCloudKeys
 					if( $ShadowCodeWorks ) {
 						foreach( $cloudKey in $TargetCloudKeys ) {
-							($cloudHost, $cloudOrg) = Get-CloudInfoFromKey -Key $cloudKey
+							($cloudHost, $cloudOrg, $cloudCatalog) = Get-CloudInfoFromKey -Key $cloudKey
 							if( $cloudHost -ne '' ) {
 								$msg = "$(Get-Date) $podName - Shadowing in $cloudKey"
 								Out-File -FilePath $currentFile.FullName -InputObject $msg -Append
@@ -546,7 +546,7 @@ Function Start-HolVpodImportDaemon {
 					#Spawn jobs with Add-CIVappShadowsWait for each $TargetCloudKeys
 					If( $ShadowCodeWorks ) {
 						Foreach( $cloudKey in $TargetCloudKeys ) {
-							($cloudHost, $cloudOrg) = Get-CloudInfoFromKey -Key $cloudKey
+							($cloudHost, $cloudOrg, $cloudCatalog) = Get-CloudInfoFromKey -Key $cloudKey
 							If( $cloudHost -ne '' ) {
 								$msg = "$(Get-Date) $podName - Shadowing in $cloudKey"
 								Out-File -FilePath $currentFile.FullName -InputObject $msg -Append
