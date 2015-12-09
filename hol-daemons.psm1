@@ -1,4 +1,4 @@
-# Version 1.6.2 - 9 December 2015
+# Version 1.6.3 - 9 December 2015
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -309,16 +309,18 @@ Function Start-HolVpodExportDaemon {
 $mycmd = '
 	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
 	Import-Module "E:\Scripts\hol-cmdlets.psd1"
-		$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
-		Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 
-		Catch { Write-Host "No matching OrgVdc" ; Return }
-		If($orgVdcs) { 
-			Try { 
-				$vPod = Get-civappTemplate -Catalog ' + $TargetCloudCatalog + ' -Name ' + $podName + '
-				Add-CiVappShadowsWait -o $orgVdcs -v $vPod
-			} Catch { Write-Host "No matching vPod" }
-		}
-		$vcd | Disconnect-CiServer -Confirm:$false'
+	Write-host "Initialized PowerCLI, loaded HOL modules"
+	Get-Module VMware*
+	$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
+	Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 
+	Catch { Write-Host "No matching OrgVdc" ; Return }
+	If($orgVdcs) { 
+		Try { 
+			$vPod = Get-civappTemplate -Catalog ' + $TargetCloudCatalog + ' -Name ' + $podName + '
+			Add-CiVappShadowsWait -o $orgVdcs -v $vPod
+		} Catch { Write-Host "No matching vPod" }
+	}
+	$vcd | Disconnect-CiServer -Confirm:$false'
 								Start-Job -Name "Shadow $podName in $cloudKey" -ScriptBlock { param($mycmd) Invoke-Expression -Command $mycmd } -ArgumentList $mycmd
 							} else {
 								Write-Host -Fore Red "ERROR: invalid CloudKey specified: $cloudKey"
