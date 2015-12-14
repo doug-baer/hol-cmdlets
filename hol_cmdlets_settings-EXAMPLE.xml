@@ -15,6 +15,8 @@
 			<org>HOL</org>
 			<ovdc>HOL-user-ovDC1</ovdc>
 			<catalog>HOL-Master-Templates</catalog>
+			<credential>C:\my-HOL-credential</credential>
+			<username>my-per-cloud-username</username>
 		</Cloud>
 	</Clouds>
 	<VPodSettings>
