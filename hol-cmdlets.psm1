@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2015 December 14
+### 2015 December 4
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -71,13 +71,14 @@ NOTE: To Store the password encrypted for use here:
 			#legacy location
 			$CredentialPath = $DEFAULT_CLOUDCREDENTIAL
 			$u = $DEFAULT_CLOUDUSER
-			Write-Host "$($cloud.key) will use DEFAULT CREDENTIAL"
+			Write-Verbose "$($cloud.key) will use DEFAULT CREDENTIAL"
 		} else {
 			$CredentialPath = $cloud.credential
 			$u = $cloud.username
-			Write-Host "$($cloud.key) configured: $u @ $credentialPath"
+			Write-Verbose "$($cloud.key) configured: $u @ $credentialPath"
 		}
 		if( Test-Path $CredentialPath ) {
+			Write-Verbose "  Using credential from $CredentialPath"
 			$p = Get-Content $CredentialPath | ConvertTo-SecureString
 			$Credential = New-Object System.Management.Automation.PsCredential $u , $p
 		}
@@ -1683,11 +1684,14 @@ Function Test-CIVAppTemplateCustomization {
 
 
 Function Test-CloudCredential {
-
+	Write-Host "== DEFAULTS =="
 	Write-Host "Cloud Credential: $DEFAULT_CLOUDCREDENTIAL"
 	Write-Host "Cloud User: $DEFAULT_CLOUDUSER"
-	Write-Host "Cloud Password: $DEFAULT_CLOUDPASSWORD"
+#	Write-Host "Cloud Password: $DEFAULT_CLOUDPASSWORD"
 
+	Write-Host "== CONFIGURED FOR $cloudKey =="
+	Write-Host "Cloud User:" ($creds[$cloudKey]).userName
+	
 } #Test-CloudCredential
 
 
