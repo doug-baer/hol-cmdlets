@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2015 December 4
+### 2015 December 14
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -27,9 +27,6 @@ if( Test-Path $holSettingsFile ) {
 
 	$catalogs = @{}
 	foreach( $cloud in $SettingsFile.Settings.Clouds.Cloud ) { $catalogs.Add($cloud.key,$cloud.catalog) }
-
-	$creds = @{}
-	foreach( $cloud in $SettingsFile.Settings.Clouds.Cloud ) { $creds.Add($cloud.key,$occ) }
 
 	#these pods get special treatment (metadata added for VLP)
 	$wiredUpVpods = @{}
@@ -64,9 +61,29 @@ NOTE: To Store the password encrypted for use here:
 	$DEFAULT_CLOUDPASSWORD = $SettingsFile.Settings.Defaults.CloudPassword
 	$DEFAULT_CLOUDCREDENTIAL = $SettingsFile.Settings.Defaults.CloudCredential
 	if( ($DEFAULT_CLOUDPASSWORD -eq '') -and (Test-Path $DEFAULT_CLOUDCREDENTIAL) ) {
-		$cred = New-Object System.Management.Automation.PsCredential $DEFAULT_CLOUDUSER , $(Get-Content $DEFAULT_CLOUDCREDENTIAL | ConvertTo-SecureString)
-		$DEFAULT_CLOUDPASSWORD = ($cred.GetNetworkCredential()).Password
+		$default_cred = New-Object System.Management.Automation.PsCredential $DEFAULT_CLOUDUSER , $(Get-Content $DEFAULT_CLOUDCREDENTIAL | ConvertTo-SecureString)
+		$DEFAULT_CLOUDPASSWORD = ($default_cred.GetNetworkCredential()).Password
 	}
+	$creds = @{}
+#	foreach( $cloud in $SettingsFile.Settings.Clouds.Cloud ) { $creds.Add($cloud.key,$occ) }
+	foreach( $cloud in $SettingsFile.Settings.Clouds.Cloud ) { 
+		if( !($cloud.credential) ) {
+			#legacy location
+			$CredentialPath = $DEFAULT_CLOUDCREDENTIAL
+			$u = $DEFAULT_CLOUDUSER
+			Write-Host "$($cloud.key) will use DEFAULT CREDENTIAL"
+		} else {
+			$CredentialPath = $cloud.credential
+			$u = $cloud.username
+			Write-Host "$($cloud.key) configured: $u @ $credentialPath"
+		}
+		if( Test-Path $CredentialPath ) {
+			$p = Get-Content $CredentialPath | ConvertTo-SecureString
+			$Credential = New-Object System.Management.Automation.PsCredential $u , $p
+		}
+		$creds.Add($cloud.key, $Credential)
+	}
+	
 } else {
 	Write-Host "Unable to find $holSettingsFile - no default values configured"
 }
@@ -2018,6 +2035,28 @@ Function Get-CloudInfoFromKey {
 		}
 	}
 } #Get-CloudInfoFromKey
+
+
+Function Get-Clouds {
+<#
+	Prints out a list of configured cloudkeys, hostnames, orgs, and default catalogs
+#>
+	PROCESS {
+		Write-Output "== CloudKeys Configured =="
+		$clouds = @()
+		foreach( $ck in ($vcds.keys) ) { 
+			$cloud = "" | select Key,Host,Org,Catalog,Credential
+			$cloud.Key = $ck
+			$cloud.Host = ($vcds[$ck]).Replace('.vmware.com','')
+#			$cloud.Host = $vcds[$ck]
+			$cloud.Org = $orgs[$ck]
+			$cloud.Catalog = $catalogs[$ck]
+			$cloud.Credential = ($creds[$ck]).UserName
+			$clouds += $cloud
+		}
+		Write-Output $clouds | Sort -Property Key | Format-Table -Wrap
+	}
+} #Get-Clouds
 
 
 Function Get-MountPointFreeSpace {
