@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2015 December 4
+### 2015 December 22
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -1994,8 +1994,33 @@ Function SetHolPrompt {
 <#
 	Set the prompt to include the $cloudkey variable (used for per-session defaults)
 #>
-	Function global:Prompt { Write-Host "HOL/$cloudKey " -nonewline -fore Green ; Write-Host ((Get-Location).Path + ">") -NoNewLine ; return " " }
-}
+	Function global:Prompt { 
+		foreach( $ciServer in $global:DefaultCiServers ) {
+			if( $ciServer.org -eq "system" ) {
+				Write-Host "SYSADMIN/$cloudKey " -nonewline -background Red -foreground Black
+				Write-Host ((Get-Location).Path + ">") -NoNewLine
+				return " "
+			}
+		}
+		Write-Host "HOL/$cloudKey " -nonewline -foreground Green
+		Write-Host ((Get-Location).Path + ">") -NoNewLine
+		return " "
+	}
+} #SetHolPrompt
+
+
+Function SetWindowTitle {
+	PARAM (
+		[String] $newTitle
+	)
+	PROCESS {
+		if( $newTitle -eq "" ) {
+			$newTitle = "$cloudkey : $((Get-PowerCliVersion).UserFriendlyVersion)"
+		}
+		
+		$host.ui.RawUI.WindowTitle = $newTitle 
+	}
+} #SetWindowTitle
 
 
 Function Connect-Cloud {
