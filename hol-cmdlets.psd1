@@ -12,7 +12,7 @@
 RootModule = 'hol-cmdlets.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.5.2'
+ModuleVersion = '1.5.3'
 
 # ID used to uniquely identify this module
 GUID = 'd8a17aab-8816-44a7-9b67-ad829a045c72'

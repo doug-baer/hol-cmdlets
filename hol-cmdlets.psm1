@@ -2015,7 +2015,11 @@ Function SetWindowTitle {
 	)
 	PROCESS {
 		if( $newTitle -eq "" ) {
-			$newTitle = "$cloudkey : $((Get-PowerCliVersion).UserFriendlyVersion)"
+			if( Test-PowerCLI ) { 
+				$newTitle = "$cloudkey : $((Get-PowerCliVersion).UserFriendlyVersion)"
+			} else {
+				$newTitle = "$cloudkey : Windows Powershell $((Get-Host).Version)"
+			}
 		}
 		
 		$host.ui.RawUI.WindowTitle = $newTitle 
