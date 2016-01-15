@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2015 December 22
+### 2016 January 15
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -704,13 +704,13 @@ Function Import-VcdMedia {
 	Will attempt to resume until successful completion (or 20x)
 #>
 	PARAM (
-		$Key = $(throw "need -Key"),
-		$Catalog = "",
+		$Key = $cloudKey,
+		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ "" } ),
 		$MediaName = $(throw "need -MediaName"), 
 		$MediaType = 'iso',
 		$LibPath = $(throw "need -LibPath"),
-		$User = $DEFAULT_CLOUDUSER,
-		$Password = $DEFAULT_CLOUDPASSWORD,
+		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
+		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } ),
 		$OvDC = "",
 		$Options = ""
 	)
@@ -955,8 +955,8 @@ Function Import-VPod {
 		$Catalog = $DEFAULT_TARGETCLOUDCATALOG,
 		$VPodName = $(throw "need -VPodName"), 
 		$LibPath = $DEFAULT_LOCALLIB,
-		$User = $DEFAULT_CLOUDUSER,
-		$Password = $DEFAULT_CLOUDPASSWORD,
+		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
+		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } ),
 		$AlternateName = '',
 		$Options = '--allowExtraConfig',
 		$MaxRetries = 5
@@ -1047,8 +1047,8 @@ Function Export-VPod {
 		$Catalog = $DEFAULT_SOURCECLOUDCATALOG,
 		$VPodName = $(throw "need -VPodName"), 
 		$LibPath = $DEFAULT_LOCALLIB,
-		$User = $DEFAULT_CLOUDUSER,
-		$Password = $DEFAULT_CLOUDPASSWORD,
+		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
+		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } ),
 		$MaxRetries = 20,
 		$Options = '--exportFlags=preserveIdentity --allowExtraConfig',
 		[Switch]$Print
@@ -1941,8 +1941,8 @@ Function Sync-CatalogToDirectory {
 		$Key = $cloudKey,
 		$CatalogName = '',
 		$LibraryPath = $DEFAULT_LOCALLIB,
-		$UserName = $DEFAULT_CLOUDUSER,
-		$Password = $DEFAULT_CLOUDPASSWORD
+		$UserName = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
+		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } )
 	)
 	PROCESS {
 		if( $LibraryPath -eq '' ) {
@@ -2202,3 +2202,24 @@ Function Set-CIVAppTemplateConsolidate {
 	}
 } #Set-CIVAppTemplateConsolidate
 
+
+##### testing
+Function Test-MyParams {
+	PARAM (
+		$Key = $cloudKey,
+		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
+		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } )
+	)
+	PROCESS {
+		Write-Host "checking parameter function for $KEY"
+		Write-Host "User: $User"
+		Write-Host "Password: $Password"
+		if($creds.ContainsKey[$Key]){ 
+			Write-Host "decoding password"
+			Write-Host $(($creds[$Key].GetNetworkCredential()).User) 
+		} else{
+			Write-Host "Default: $DEFAULT_CLOUDUSER"
+		}
+		return
+	}
+}
