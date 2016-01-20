@@ -81,8 +81,10 @@ NOTE: To Store the password encrypted for use here:
 			Write-Verbose "  Using credential from $CredentialPath"
 			$p = Get-Content $CredentialPath | ConvertTo-SecureString
 			$Credential = New-Object System.Management.Automation.PsCredential $u , $p
+			$creds.Add($cloud.key, $Credential)
+		} else {
+			Write-Verbose "  WARNING: unable to find credential file $CredentialPath"
 		}
-		$creds.Add($cloud.key, $Credential)
 	}
 	
 } else {
