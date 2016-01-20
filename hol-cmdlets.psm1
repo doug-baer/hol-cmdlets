@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 January 15
+### 2016 January 20
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -952,7 +952,7 @@ Function Import-VPod {
 #>
 	PARAM (
 		$Key = $cloudKey,
-		$Catalog = $DEFAULT_TARGETCLOUDCATALOG,
+		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ $DEFAULT_TARGETCLOUDCATALOG } ),
 		$VPodName = $(throw "need -VPodName"), 
 		$LibPath = $DEFAULT_LOCALLIB,
 		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
@@ -1044,7 +1044,7 @@ Function Export-VPod {
 #>
 	PARAM (
 		$Key = $cloudKey,
-		$Catalog = $DEFAULT_SOURCECLOUDCATALOG,
+		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ $DEFAULT_SOURCECLOUDCATALOG } ),
 		$VPodName = $(throw "need -VPodName"), 
 		$LibPath = $DEFAULT_LOCALLIB,
 		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
