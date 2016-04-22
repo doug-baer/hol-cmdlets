@@ -533,7 +533,7 @@ Function Add-CIVAppShadows {
 	Takes a list of vAppTemplates and a list of OrgVDCs
 	Provisions one copy of a vApp on each OrgVdc simultaneously (asynchronously)
 	Named <vAppName>_shadow_<OrgvdcName>
-	with 5 hour storage and Runtime leases so vCD clean them up if you forget
+	with 5 hour storage and Runtime leases so vCD cleans them up if you forget
 	
 	Waits for the last of the vApps to finish deploying before moving to the next template
 
@@ -548,6 +548,7 @@ Function Add-CIVAppShadows {
 		$vApps = $(throw "need -vApps"), 
 		$OrgVDCs = $(throw "need -OrgVdcs"),
 		$SleepTime = 120,
+		[Switch]$Cleanup
 		[Switch]$DebugMe
 	)
 	
@@ -608,6 +609,18 @@ Function Add-CIVAppShadows {
 				}
 			}
 			Write-Host -fore Green "Finished shadows for $($vApp.Name) at $(Get-Date)"
+			if( $Cleanup ) {
+				Write-Host "Cleaning up shadows"
+				$shadows = @{}
+				foreach( $shadow in $(Get-CIVApp $shadowPattern) ) {
+					if( $shadow.Status -ne "PoweredOff" ) {
+						Write-Host  -BackgroundColor Magenta -ForegroundColor Black "Bad Shadow:" $shadow.Name $shadow.Status
+					}
+					$shadowList += $shadow
+				}
+				Write-Host "Cleaned up shadows"
+				$shadowList | Remove-CIVapp -Confirm:$false
+			}
 		}
 	}
 } #Add-CIVAppShadows
