@@ -548,7 +548,7 @@ Function Add-CIVAppShadows {
 		$vApps = $(throw "need -vApps"), 
 		$OrgVDCs = $(throw "need -OrgVdcs"),
 		$SleepTime = 120,
-		[Switch]$Cleanup
+		[Switch]$Cleanup,
 		[Switch]$DebugMe
 	)
 	
