@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 April 22
+### 2016 May 20
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -798,6 +798,94 @@ Function Import-VcdMedia {
 		} 
 	}
 } #Import-VcdMedia
+
+
+Function Export-VcdMedia {
+<#
+	Takes an ISO Name, Catalog, "cloud key", and a path to the local Media Library
+	Imports the ISO( or OVA) located at <library>\ISONAME.<TYPE>
+	Will attempt to resume until successful completion (or 20x)
+#>
+	PARAM (
+		$Key = $cloudKey,
+		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ "" } ),
+		$MediaName = $(throw "need -MediaName"), 
+		$MediaType = 'iso',
+		$LibPath = $(throw "need -LibPath"),
+		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
+		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } ),
+		$OvDC = "",
+		$Options = ""
+	)
+	PROCESS {
+
+		$mediaPath = Join-Path $LibPath $($MediaName + "." + $MediaType)
+
+		#test path, bail if found
+		if( Test-Path $mediaPath ) {
+			Write-Host -fore Red "!!! $mediaType file found: $mediaPath"
+			Return
+		}
+		
+		$maxRetries = 20
+		$retryCount = 0
+		
+		$vp = $MediaName
+		$k = $Key
+		$un = $User
+
+		if( $Password -eq "" ) {
+			$pw = 'xx'
+		} else { 
+			$pw = $Password
+		}
+
+		if( $MediaType.ToLower() -match 'ov[a,f]' ) {
+			$type = 'vappTemplate'
+		} else {
+			$type = 'media'
+		}
+		
+		if( $Catalog -eq "" ) {
+			Write-Host "	Exporting from default catalog: $($catalogs[$k])"
+			$cat = $catalogs[$k]
+		} else {
+			$cat = $Catalog
+		}
+
+		$tgt = $mediaPath
+	
+		#allow override of OrgVDC via command line. Default based on $key
+		if( $OvDC -eq "" ) { 
+			$OvDC = $ovdcs[$k] 
+		}
+	
+		$src = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp.$mediaType"
+
+		Write-Host -fore Yellow "DEBUG: Source is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k])"
+
+		#Options ( additional options to OVFtool like '--overwrite')
+		$opt = $Options
+
+		Write-Host -fore Yellow "DEBUG: Exporting from $src with options: $opt"
+
+		Write-Host -fore Green "Beginning export of media $MediaName at $(Get-Date)"
+
+		### put in a loop to ensure it is restarted if it times out. 
+		Do {
+			$retryCount += 1
+			Write-Host "	Running ovftool (try $retryCount of $maxRetries) to $tgt with options: $opt"
+			ovftool $opt $src $tgt
+			Sleep -sec 60
+		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
+		
+		if( !($retryCount -gt $maxRetries) ) {
+			Write-Host -fore Green "Completed export of media $vp at $(Get-Date)"
+		} else {
+			Write-Host -fore Red "FAILED export of media $vp at $(Get-Date)"
+		} 
+	}
+} #Export-VcdMedia
 
 
 ###########################################################################
