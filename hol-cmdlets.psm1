@@ -774,7 +774,7 @@ Function Import-VcdMedia {
 	
 		$tgt = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp"
 
-		Write-Host -fore Yellow "DEBUG: Target is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k])"
+		Write-Host -fore Yellow "DEBUG: Target is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
 
 		#Options ( additional options to OVFtool like '--overwrite')
 		$opt = $Options
@@ -862,7 +862,7 @@ Function Export-VcdMedia {
 	
 		$src = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp.$mediaType"
 
-		Write-Host -fore Yellow "DEBUG: Source is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k])"
+		Write-Host -fore Yellow "DEBUG: Source is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
 
 		#Options ( additional options to OVFtool like '--overwrite')
 		$opt = $Options
