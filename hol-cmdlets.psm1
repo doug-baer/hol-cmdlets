@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 May 20
+### 2016 July 07
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -559,7 +559,7 @@ Function Add-CIVAppShadows {
 			#LEGACY - add Internet-Connect Metadata if Description matches pattern
 			if( $vApp.Description -like "*~" ) {
 				Write-Host -fore Green "** Adding vCD metadata for VLP to wire up **"
-				Add-InternetMetadata -vpodName $vApp.Name
+				Add-InternetMetadata -vpodName $vApp.Name -UserOrgVdcPattern $($OrgVDCs[0].Name)
 			}
 
 			#NEW - add Internet-Connect Metadata if truncated name exists in wiredUpVpods
@@ -568,7 +568,7 @@ Function Add-CIVAppShadows {
 				$vAppShortName = ($vApp.Name).Substring(0,$foundV-1)
 				if( $wiredUpVpods.ContainsKey($vAppShortName) ) {
 					Write-Host -fore Green "** Adding vCD metadata for VLP to wire up **"
-					Add-InternetMetadata -vpodName $vApp.Name
+					Add-InternetMetadata -vpodName $vApp.Name -UserOrgVdcPattern $($OrgVDCs[0].Name)
 				}
 			}
 			
@@ -1013,9 +1013,12 @@ Function Add-InternetMetadata {
 	Update 07/2015 to handle different orgvdc patterns: grabs first one matching *UT*
 		Also handle special case for vCloud Air external network naming
 	Update 08/2015 to allow specification of catalog name 
+	Update 07/2016 to allow specification of "user" orgvdc pattern (OC changed it!)
+
 #>
 	PARAM (
 		$VPodName = $(throw "need -vPodName"),
+		$UserOrgVdcPattern = '*ut*',
 		$CatalogName = $DEFAULT_TARGETCLOUDCATALOG
 	)
 	PROCESS {
@@ -1025,7 +1028,7 @@ Function Add-InternetMetadata {
 		if( $vAppNetName -ne $null ) {
 			New-CIMetaData -CIObject $vp -Key 'vappNetwork1' -Value $vAppNetName
 			#grab the first user OrgVdc
-			$nn = (get-orgvdc *ut*)[0].ExtensionData.AvailableNetworks.Network.name
+			$nn = (get-orgvdc -Name $UserOrgVdcPattern)[0].ExtensionData.AvailableNetworks.Network.name
 			if( $nn -like 'VMware-HOL*' ) {
 				#this is vCloud Air "p11vX"
 				$netName = "VMware-HOL"
