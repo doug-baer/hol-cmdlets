@@ -404,7 +404,9 @@ Function Set-CleanOvf {
 								$oldSize = $matches[1]
 								$newSize = $disksToResize[$disk]
 								if( $newSize -gt [int]$oldSize ) {
-									$line = $line -replace $oldSize, $newSize 
+									$oldStr = 'ovf:capacity="' + $oldSize + '"'
+									$newStr = 'ovf:capacity="' + $newSize + '"'
+									$line = $line -replace $oldStr, $newStr 
 									Write-Host "Replacing $oldSize with $newSize (full disk)"
 									$smallDisks = $true
 								}
