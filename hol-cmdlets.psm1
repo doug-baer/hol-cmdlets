@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 July 07
+### 2016 August 01
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -291,6 +291,9 @@ Function Set-CleanOvf {
 	
 	* 2015 Update: generate and replace OVF's checksum in Manifest
 	* Correct VMDK sizes specified in MB, but are smaller than data population
+	
+	* 2016 Update: correct sizes for "full" disks (>90%?) to prevent being tagged as EZT on import
+	
 #>
 	PARAM(
 		#Path to vPod library. Will be read recursively for *.OVF files
@@ -320,11 +323,13 @@ Function Set-CleanOvf {
 				$setPool = $false
 				$removedNat = $false
 				$smallDisks = $false
+				$fullDisks = $false
 
-				### Handle vCD/OVF "rounding error" - KB#2094271
+				### Handle vCD/OVF "rounding error" - KB#2094271 - for $DisksAllocatedInMb
 				[xml]$xmlOvf = Get-Content $OVF
 				$newDiskReferences = $xmlOvf.Envelope.References.File
 				$DisksAllocatedInMb = $xmlOvf.Envelope.DiskSection.Disk | where { $_.capacityAllocationUnits -eq 'byte * 2^20'}
+				$AllDisks = $xmlOvf.Envelope.DiskSection.Disk
 
 				$vmdkSizes = @{}
 				foreach( $disk in $newDiskReferences ) {
@@ -332,7 +337,7 @@ Function Set-CleanOvf {
 					$vmdkSizes.Add($diskID,$disk.size)
 				}
 
-				$disksToResize = @{}
+				$disksToResizeMb = @{}
 				foreach( $disk in $DisksAllocatedInMb ) {
 					$diskID = ($disk.fileRef).Remove(0,5)
 					$diskRequiredSize = $disk.populatedSize
@@ -346,28 +351,69 @@ Function Set-CleanOvf {
 					if( $diskSizeDifference -gt 0 ) {
 						$increaseMB = [math]::Ceiling($diskSizeDifference / 1MB)
 						Write-Output ("`tDisk {0} is {1:N0} bytes too small.`n`tIncreasing from {2:N0} to {3:N0} MB" -f $diskId, $diskSizeDifference, $diskCapacity, ($diskCapacity + $increaseMB) )
-						$disksToResize.Add($diskID, $increaseMB )
+						$disksToResizeMb.Add($diskID, $increaseMB )
 						$diskCapacity += $increaseMB
 					}
 				}
 
+				$disksToResize = @{}
+				foreach( $disk in $AllDisks ) {
+					$diskID = ($disk.fileRef).Remove(0,5)
+					$diskPopulatedSize = $disk.populatedSize
+					$diskCapacity = [int]($disk.capacity)
+					if( $disk.capacityAllocationUnits -eq 'byte * 2^30' ) {
+						$diskSpecifiedSize = $diskCapacity * 1GB
+					} else {
+						$diskSpecifiedSize = $diskCapacity * 1MB
+					}
+
+					#calculate the % Full
+					$diskFullnessPercent = 100 * $diskPopulatedSize / $diskSpecifiedSize
+					Write-Output ("  Disk {0} is {1:N0}% full." -f $diskId, $diskFullnessPercent )
+					if( $diskFullnessPercent -ge 90 ) {
+						#calculate the new size for 30% free space, round to nearest whole GB
+						$newSizeGb = [math]::Ceiling($diskCapacity / 0.7)
+						Write-Output ("  Disk {0} is too small for thin: {1:N0}% full.`n`tIncreased from {2:N0} to {3:N0}" -f $diskId, $diskFullnessPercent, $diskCapacity, $newSizeGb )
+						$disksToResize.Add($diskID, $newSizeGb)
+					}
+				}
+
+
 				(Get-Content $ovf.fullName) | % { 
 					$line = $_
 
-					foreach( $disk in $disksToResize.Keys ) {
+					foreach( $disk in $disksToResizeMb.Keys ) {
 						if( $line -match "vmdisk-$disk" ) {
 							#handle the mis-allocated VMDK/vCD rounding issue
-							If( $line -match '.*ovf:capacity="(\d+)".*' ) {
+							if( $line -match '.*ovf:capacity="(\d+)".*' ) {
 								$oldSize = $matches[1]
-								$newSize = [int]$oldSize + $disksToResize[$disk]
+								$newSize = [int]$oldSize + $disksToResizeMb[$disk]
 								$line = $line -replace $oldSize, $newSize 
-								Write-Host "Replacing $oldSize with $newSize"
+								Write-Host "Replacing $oldSize with $newSize (small disk)"
 								$smallDisks = $true
 							}
 							#not necessary since it falls through to the Else while $keep=true
 							#$line
 						}
 					}
+
+					foreach( $disk in $disksToResize.Keys ) {
+						if( $line -match "vmdisk-$disk" ) {
+							#handle the "automatic EZT" when full issue
+							if( $line -match '.*ovf:capacity="(\d+)".*' ) {
+								$oldSize = $matches[1]
+								$newSize = $disksToResize[$disk]
+								if( $newSize -gt [int]$oldSize ) {
+									$line = $line -replace $oldSize, $newSize 
+									Write-Host "Replacing $oldSize with $newSize (full disk)"
+									$smallDisks = $true
+								}
+							}
+							#not necessary since it falls through to the Else while $keep=true
+							#$line
+						}
+					}
+
 
 					#handle the OVF password stripping that vCD performs
 					if( $line -match 'ovf:password="true"' ) {
@@ -421,6 +467,9 @@ Function Set-CleanOvf {
 				if( $smallDisks ) {
 					Write "Fixed disk sizes in file: $($ovf.name)"
 				}
+				if( $fullDisks ) {
+					Write "Fixed disk sizes (for EZT) in file: $($ovf.name)"
+				}
 				#Regenerated the OVF, so need a new Hash
 				if( $manifestExists ) {
 					$newOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ovf.FullName).Hash.ToLower()
@@ -439,6 +488,7 @@ Function Set-CleanOvf {
 		}
 	}
 } #Set-CleanOvf
+
 
 
 Function Get-VmdkHashes {
@@ -553,7 +603,7 @@ Function Add-CIVAppShadows {
 	)
 	
 	PROCESS {
-		$fiveHr = New-Object System.Timespan 5,0,0
+		$leaseTime = New-Object System.Timespan 24,0,0
 
 		foreach( $vApp in $vApps ) {
 			#LEGACY - add Internet-Connect Metadata if Description matches pattern
@@ -576,7 +626,7 @@ Function Add-CIVAppShadows {
 			Write-Host -fore Green "Beginning shadows for $($vApp.Name) at $(Get-Date)"
 			foreach( $orgVDC in $OrgVDCs ) { 
 				$shadowName = $($($vApp.Name) + "_shadow_" + $($orgVDC.Name))
-				New-CIVApp -Name $shadowName -OrgVdc $orgVDC -VAppTemplate $vApp -RuntimeLease $fiveHr -StorageLease $fiveHr -RunAsync | Out-Null
+				New-CIVApp -Name $shadowName -OrgVdc $orgVDC -VAppTemplate $vApp -RuntimeLease $leaseTime -StorageLease $leaseTime -RunAsync | Out-Null
 				Write-Host "==> Creating $shadowName"
 			}
 			
