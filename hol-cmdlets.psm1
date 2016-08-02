@@ -292,7 +292,7 @@ Function Set-CleanOvf {
 	* 2015 Update: generate and replace OVF's checksum in Manifest
 	* Correct VMDK sizes specified in MB, but are smaller than data population
 	
-	* 2016 Update: correct sizes for "full" disks (>90%?) to prevent being tagged as EZT on import
+	* 2016 Update: correct sizes for "full" disks (>85%?) to prevent being tagged as EZT on import
 	
 #>
 	PARAM(
@@ -370,7 +370,7 @@ Function Set-CleanOvf {
 					#calculate the % Full
 					$diskFullnessPercent = 100 * $diskPopulatedSize / $diskSpecifiedSize
 					Write-Output ("  Disk {0} is {1:N0}% full." -f $diskId, $diskFullnessPercent )
-					if( $diskFullnessPercent -ge 90 ) {
+					if( $diskFullnessPercent -ge 85 ) {
 						#calculate the new size for 30% free space, round to nearest whole GB
 						$newSizeGb = [math]::Ceiling($diskCapacity / 0.7)
 						Write-Output ("  Disk {0} is too small for thin: {1:N0}% full.`n`tIncreased from {2:N0} to {3:N0}" -f $diskId, $diskFullnessPercent, $diskCapacity, $newSizeGb )
