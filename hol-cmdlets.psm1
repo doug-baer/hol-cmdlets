@@ -295,7 +295,11 @@ Function Set-CleanOvf {
 	* 2016 Update: correct sizes for "full" disks (>60%?) to prevent being tagged as EZT on import
 	* Added configurable threshold and calculation of new disk size to match it
 	
+	Example: Set-CleanOvf -LibraryPath E:\HOL-Library -Threshold 65 -Verbose
+	
 #>
+	[CmdletBinding()] 
+
 	PARAM(
 		#Path to vPod library. Will be read recursively for *.OVF files
 		$LibraryPath = $(throw "need -LibraryPath"),
@@ -352,7 +356,7 @@ Function Set-CleanOvf {
 
 					if( $diskSizeDifference -gt 0 ) {
 						$increaseMB = [math]::Ceiling($diskSizeDifference / 1MB)
-						Write-Output ("`tDisk {0} is {1:N0} bytes too small.`n`tIncreasing from {2:N0} to {3:N0} MB" -f $diskId, $diskSizeDifference, $diskCapacity, ($diskCapacity + $increaseMB) )
+						Write-Verbose ("`tDisk {0} is {1:N0} bytes too small.`n`tIncreasing from {2:N0} to {3:N0} MB" -f $diskId, $diskSizeDifference, $diskCapacity, ($diskCapacity + $increaseMB) )
 						$disksToResizeMb.Add($diskID, $increaseMB )
 						$diskCapacity += $increaseMB
 					}
@@ -376,10 +380,10 @@ Function Set-CleanOvf {
 
 					#calculate the % Full
 					$diskFullnessPercent = 100 * $diskPopulatedSize / $diskSpecifiedSize
-					Write-Output ("  Disk {0} is {1:N0}% full." -f $diskId, $diskFullnessPercent )
+					Write-Verbose ("  Disk {0} is {1:N0}% full." -f $diskId, $diskFullnessPercent )
 					
 					if( $diskFullnessPercent -ge $Threshold ) {
-						Write-Output ("  Disk {0} is too small for thin: {1:N0}% full.`n`tIncreased from {2:N0} to {3:N0} ( {4:N0}% full)" -f $diskId, $diskFullnessPercent, $diskCapacity, $newSize, $newFullPercent )
+						Write-Verbose ("  Disk {0} is too small for thin: {1:N0}% full.`n`tIncreased from {2:N0} to {3:N0} ( {4:N0}% full)" -f $diskId, $diskFullnessPercent, $diskCapacity, $newSize, $newFullPercent )
 						$disksToResize.Add($diskID, $newSize)
 					}
 				}
@@ -395,7 +399,7 @@ Function Set-CleanOvf {
 								$oldSize = $matches[1]
 								$newSize = [int]$oldSize + $disksToResizeMb[$disk]
 								$line = $line -replace $oldSize, $newSize 
-								Write-Host "Replacing $oldSize with $newSize (small disk)"
+								Write-Verbose "Replacing $oldSize with $newSize (small disk)"
 								$smallDisks = $true
 							}
 							#not necessary since it falls through to the Else while $keep=true
@@ -413,7 +417,7 @@ Function Set-CleanOvf {
 									$oldStr = 'ovf:capacity="' + $oldSize + '"'
 									$newStr = 'ovf:capacity="' + $newSize + '"'
 									$line = $line -replace $oldStr, $newStr 
-									Write-Host "Replacing $oldSize with $newSize (full disk)"
+									Write-Verbose "Replacing $oldSize with $newSize (full disk)"
 									$smallDisks = $true
 								}
 							}
@@ -461,7 +465,7 @@ Function Set-CleanOvf {
 				} | Out-String | %{ $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "ASCII"
 
 				if( $setPassword ) {
-					Write "Set Password in file: $($ovf.name)"
+					Write-Host "Set Password in file: $($ovf.name)"
 				}
 				if( $setPool ) {
 					Write-Host -fore Yellow "Changed Pool to DHCP in file: $($ovf.name)"
@@ -470,13 +474,13 @@ Function Set-CleanOvf {
 					Write-Host -fore Red "Set CustomizeOnInstantiate in file: $($ovf.name)"
 				}
 				if( $removedNat ) {
-					Write "Removed NAT rules in file: $($ovf.name)"
+					Write-Host "Removed NAT rules in file: $($ovf.name)"
 				}
 				if( $smallDisks ) {
-					Write "Fixed disk sizes in file: $($ovf.name)"
+					Write-Host -Fore Red "Fixed disk sizes in file: $($ovf.name)"
 				}
 				if( $fullDisks ) {
-					Write "Fixed disk sizes (for EZT) in file: $($ovf.name)"
+					Write-Host -Fore Yellow "Fixed disk sizes (for EZT) in file: $($ovf.name)"
 				}
 				#Regenerated the OVF, so need a new Hash
 				if( $manifestExists ) {
