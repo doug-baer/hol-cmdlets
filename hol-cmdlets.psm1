@@ -462,7 +462,7 @@ Function Set-CleanOvf {
 							$last = $false
 						}
 					}
-				} | Out-String | %{ $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "ASCII"
+				} | Out-String | % { $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "ASCII"
 
 				if( $setPassword ) {
 					Write-Host "Set Password in file: $($ovf.name)"
@@ -594,7 +594,7 @@ Function Add-CIVAppShadows {
 	Takes a list of vAppTemplates and a list of OrgVDCs
 	Provisions one copy of a vApp on each OrgVdc simultaneously (asynchronously)
 	Named <vAppName>_shadow_<OrgvdcName>
-	with 5 hour storage and Runtime leases so vCD cleans them up if you forget
+	with 24 hour storage and Runtime leases so vCD cleans them up if you forget
 	
 	Waits for the last of the vApps to finish deploying before moving to the next template
 
@@ -675,7 +675,7 @@ Function Add-CIVAppShadows {
 				$shadows = @{}
 				foreach( $shadow in $(Get-CIVApp $shadowPattern) ) {
 					if( $shadow.Status -ne "PoweredOff" ) {
-						Write-Host  -BackgroundColor Magenta -ForegroundColor Black "Bad Shadow:" $shadow.Name $shadow.Status
+						Write-Host -BackgroundColor Magenta -ForegroundColor Black "Bad Shadow:" $shadow.Name $shadow.Status
 					}
 					$shadowList += $shadow
 				}
@@ -759,7 +759,7 @@ Function Publish-VCDMediaDirectory {
 		}
 
 		#Add media w/o catalog to the specified catalog
-		$unboundMediaList = Get-Media | where {!$_.catalog}
+		$unboundMediaList = Get-Media | where {! $_.catalog}
 		
 		foreach( $unboundItem in $unboundMediaList ) {
 			$newItem = New-Object VMware.VimAutomation.Cloud.Views.CatalogItem
