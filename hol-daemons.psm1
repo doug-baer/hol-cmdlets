@@ -1,4 +1,4 @@
-# Version 1.6.3 - 9 December 2015
+# Version 1.6.4 - 22 September 2016
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -453,8 +453,9 @@ Function Start-HolVpodImportDaemon {
 					# Export does not currently exist, begin replication from source catalog
 					If( -not $ExportExists ) {
 						#locate the current version of the pod in $LibPath
-						# Eventually, might need a better way to match
-						$podRoot = $podName.Substring(0,12)
+						# Eventually, might need a better way to match - today is the day: 9/22/2016
+						#$podRoot = $podName.Substring(0,12)
+						$podRoot = $podName -replace '(.*)-v.*','$1'
 						Try {
 							$oldPod = Get-Item $((Join-Path $LibPath $podRoot) + '*') -ErrorAction "Stop"
 							$oldPodName = $oldPod.Name #Assumes only one pod in Libary with this root
