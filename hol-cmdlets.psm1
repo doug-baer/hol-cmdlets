@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 October 03
+### 2016 December 20
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -1943,13 +1943,13 @@ Function Show-CloudPopulation {
 		{
 			'HOL' {
 				Write-Host "Checking HOL clouds"
-				$theClouds = ('HOL','SC2','p11v1')
+				$theClouds = ('HOL','VW3','SC2','US24')
 				break
 			} 
 	
 			'CATALOG' {
 				Write-Host "Checking OneCloud Catalogs"
-				$theClouds = ('CAT-US01','CAT-US01-5','CAT-NL01')
+				$theClouds = ('CAT-US01','CAT-US01-4','CAT-US01-5','CAT-NL01')
 				#bad form to hardcode this here, but it is a pain to type!
 				$CatalogName = 'Global - HOL - VMworld 2016 Hands-on Labs'
 				# old one: 'Global - HOL - VMworld 2016 Hands-on Labs'
@@ -1965,6 +1965,7 @@ Function Show-CloudPopulation {
 			default {
 				Write-Host -ForegroundColor Red "Unrecognized cloud set. Use one of: HOL, CATALOG, VMWORLD"
 				$theClouds = ''
+				Return
 				break
 			}
 
@@ -2459,7 +2460,7 @@ Function Update-TemplateDescription {
 	UpdateTemplateDescription -KEY CAT-US01 -LIBRARY E:\HOL-Library -CATALOG 'Global - HOL - VMworld 2016 Hands-on Labs' -Verbose -SKU '1701'
 
 .EXAMPLE
-	('1706','1708','1710','1720') | % { UpdateTemplateDescription -KEY CAT-US01 -LIBRARY E:\HOL-Library -CATALOG 'Global - HOL - VMworld 2016 Hands-on Labs' -Verbose -SKU $_ }
+	('1706','1708','1710','1720') | % { Update-TemplateDescription -KEY CAT-US01 -LIBRARY E:\HOL-Library -CATALOG 'Global - HOL - VMworld 2016 Hands-on Labs' -Verbose -SKU $_ }
 #>
 	[CmdletBinding()]
 
