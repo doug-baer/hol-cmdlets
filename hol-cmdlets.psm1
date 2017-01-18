@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 18 - v1.7.1
+### 2017 January 18 - v1.7.2
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -198,7 +198,7 @@ Function Get-OvfMap {
 		#Output the data
 		foreach($key in $newDiskMap.Keys ) {
 			foreach( $key2 in ($newDiskMap[$key]).Keys ) { 
-				$str2 = "	" + $key2 + "->" + ($newDiskMap[$key])[$key2]
+				$str2 = "`t" + $key2 + "->" + ($newDiskMap[$key])[$key2]
 				if( $key -ne $curKey ) { 
 					Write "`n==> VM: $key"
 					$curKey = $key
@@ -1080,7 +1080,7 @@ Function Publish-VCDMediaDirectory {
 			$newItem.Entity = $unboundItem.href
 			$newItem.name = $unboundItem.name
 			$newItem.description = ""
-			Write-Host "	Adding $($unboundItem.Name) to $($catalog.Name)"
+			Write-Host "`tAdding $($unboundItem.Name) to $($catalog.Name)"
 			$catalog.extensiondata.createcatalogitem($newItem)
 		}
 	}
@@ -1134,7 +1134,7 @@ Function Import-VcdMedia {
 		}
 		
 		if( $Catalog -eq "" ) {
-			Write-Host "	Importing to default catalog: $($catalogs[$k])"
+			Write-Host "`tImporting to default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1161,7 +1161,7 @@ Function Import-VcdMedia {
 		### put in a loop to ensure it is restarted if it times out. 
 		Do {
 			$retryCount += 1
-			Write-Host "	Running ovftool (try $retryCount of $maxRetries) for $vp with options: $opt"
+			Write-Host "`tRunning ovftool (try $retryCount of $maxRetries) for $vp with options: $opt"
 			ovftool $opt $src $tgt
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
@@ -1222,7 +1222,7 @@ Function Export-VcdMedia {
 		}
 		
 		if( $Catalog -eq "" ) {
-			Write-Host "	Exporting from default catalog: $($catalogs[$k])"
+			Write-Host "`tExporting from default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1249,7 +1249,7 @@ Function Export-VcdMedia {
 		### put in a loop to ensure it is restarted if it times out. 
 		Do {
 			$retryCount += 1
-			Write-Host "	Running ovftool (try $retryCount of $maxRetries) to $tgt with options: $opt"
+			Write-Host "`tRunning ovftool (try $retryCount of $maxRetries) to $tgt with options: $opt"
 			ovftool $opt $src $tgt
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
@@ -1512,7 +1512,7 @@ Function Import-Vpod {
 		$type = 'vappTemplate'
 		
 		if( $Catalog -eq "" ) {
-			Write-Host "	Importing to default catalog: $($catalogs[$k])"
+			Write-Host "`tImporting to default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1533,7 +1533,7 @@ Function Import-Vpod {
 		### need to put in a loop to ensure it is restarted if it times out. 
 		Do {
 			$retryCount += 1
-			Write-Host "	Running ovftool (try $retryCount of $MaxRetries) for $vp with options: $opt"
+			Write-Host "`tRunning ovftool (try $retryCount of $MaxRetries) for $vp with options: $opt"
 			Invoke-Expression -Command $("ovftool $opt $src '" + $tgt +"'")
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $MaxRetries) )
@@ -1585,7 +1585,7 @@ Function Export-Vpod {
 		$type = 'vappTemplate'
 
 		if( $Catalog -eq "" ) {
-			Write-Host "	 Exporting from default catalog: $($catalogs[$k])"
+			Write-Host "`tExporting from default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1603,7 +1603,7 @@ Function Export-Vpod {
 		### need to put in a loop to ensure it is restarted when ovftool times out waiting for vCD
 		Do {
 			$retryCount += 1
-			Write-Host "	 Running ovftool (try $retryCount of $MaxRetries)"
+			Write-Host "`tRunning ovftool (try $retryCount of $MaxRetries)"
 			Invoke-Expression -Command $("ovftool $opt '" + $src + "' $tgt")
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $MaxRetries) )
@@ -1970,17 +1970,17 @@ Function Start-OvfTemplatePull {
 				$oldFileExists = $false
 				if( $oldDiskMap.ContainsKey($key) ) {
 					if( ($oldDiskMap[$key]).ContainsKey($key2) ) {
-						$str1 = "	OLD " + $key2 + "->" + ($oldDiskMap[$key])[$key2]
+						$str1 = "`tOLD " + $key2 + "->" + ($oldDiskMap[$key])[$key2]
 						$oldFileExists = $true
 					} 
 					else {
-						$str1 = "	NO MATCH for $key2 @ $key : new disk on VM"			
+						$str1 = "`tNO MATCH for $key2 @ $key : new disk on VM"
 					}
 				} 
 				else {
-					$str1 = "	NO MATCH for $key : net new VM"
+					$str1 = "`tNO MATCH for $key : net new VM"
 				}
-				$str2 = "	NEW " + $key2 + "->" + ($newDiskMap[$key])[$key2]
+				$str2 = "`tNEW " + $key2 + "->" + ($newDiskMap[$key])[$key2]
 				Write "`n==> HOST: $key"
 				Write $str1
 				Write $str2
@@ -1993,7 +1993,7 @@ Function Start-OvfTemplatePull {
 				if( $oldFileExists ) {
 					$oldPathEsc = doubleEscapePathSpaces $($localSeedPathC + $oldvAppName + "/" + ($oldDiskMap[$key])[$key2])
 					$command = "C:\cygwin64\bin\bash.exe --login -c 'mv " + $oldPathEsc + " " + $newPathEsc + "'"
-					Write-Host -Fore Yellow "	MOVE VMDK FILE: $command"
+					Write-Host -Fore Yellow "`tMOVE VMDK FILE: $command"
 					if( $createFile ) { $command | Out-File $fileName -Append }
 					if ( !($debug) ) { Invoke-Expression -command $command }
 					$command = $null
