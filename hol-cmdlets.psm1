@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 December 20
+### 2017 January 18 - v1.7.0
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -500,6 +500,203 @@ Function Set-CleanOvf {
 		}
 	}
 } #Set-CleanOvf
+
+
+Function Get-VmdkFromOvf {
+<#
+.SYNOPSIS
+	Searches an OVF for the VMDK(s) associated with the $VmName
+	By default, uses "vpodrouterHOL" as the $VmName
+	
+.RETURNVALUE
+	Full path(s) to VMDK(s) associated with the VM matching VmName
+	
+	$undef if no VM with a matching name
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$OVF = $(throw "need -OVF (path_to_OVF_file)"),
+		$VmName = "vpodrouterHOL"
+	)
+	PROCESS {
+		if( Test-Path $OVF ) {
+			$templatePath = Split-Path (Get-Item -Path $OVF).FullName
+			#Read the OVF as XML
+			[xml]$new = Get-Content $OVF
+			$newfiles = $new.Envelope.References.File
+			$newvAppName = $new.Envelope.VirtualSystemCollection.Name 
+	
+			#Read the filenames to the OVF IDs in a hash table by diskID within the OVF
+			Write-Verbose "Reading $newvAppName OVF"
+			$newVmdks = @{}
+			foreach( $disk in $new.Envelope.References.File ) {
+				$diskID = ($disk.ID).Remove(0,5)
+				$newVmdks.Add($diskID,$disk.href)
+			}
+			## Match the VMs and their files
+			$newVms = @()
+			$newVms = $new.Envelope.VirtualSystemCollection.VirtualSystem
+			$newDiskMap = @{}
+	
+			foreach( $vm in $newVms ) {
+				$newDiskMap.Add($vm.name,@{})
+				$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
+				$i = 0
+				foreach( $disk in $disks ) {
+					$parentDisks = @($Disks)
+					$diskName = $parentDisks[$i].ElementName
+					$i++
+					$ref = ($disk.HostResource."#text")
+					$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
+					($newDiskMap[$vm.name]).Add($diskName,$newVmdks[$ref])
+				}
+			}
+		
+			$diskList = @()
+			#Parse the data
+			Write-Verbose "Searching for $VmName"
+			foreach($key in ($newDiskMap.Keys -match $VmName) ) {
+				foreach( $key2 in ($newDiskMap[$key]).Keys ) { 
+					$str2 = Join-Path $templatePath (($newDiskMap[$key])[$key2])
+					if( $key -ne $curKey ) { 
+						Write-Verbose "`tVM: $key"
+						$curKey = $key
+					}
+					$diskList += $str2
+				}
+			}
+			return $diskList | Sort
+		}
+		else {
+			Write-Verbose "Error, $OVF not found"
+			return
+		}
+	}
+} #Get-VmdkFromOvf
+
+
+Function Set-VPodRouterVmdk {
+<#
+.SYNOPSIS
+	Replace the VPodRouter VMDK in an OVF with another
+	Update the Manifest with the hash of the replacement VMDK
+	Default manifest filename is same as OVF, but with .mf extension instead
+	Default $ReplacementXX values are for a common replacement VMDK
+	Default VmName is 'vpodrouterhol'
+
+.NOTE
+	This is low-level mucking with the VMDKs assigned to VMs within an OVF and may result
+	in a well-formed but completely non-functional vApp. Use caution. 
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$OVF = $(throw "need -Ovf"),
+		$Manifest = ($OVF -replace '.ovf$','.mf'),
+		$VmName = 'vpodrouterhol',
+		$ReplacementVmdk = 'E:\Components\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk2.vmdk',
+		$ReplacementVmdkHash = 'e7f0ea921455cd9ba5a161392c2c30355843eeac'
+	)
+	PROCESS {
+		$vPodPath = Split-Path $OVF
+		$vPodRouterVmdk = Get-VmdkFromOvf -OVF $OVF -VmName $VmName
+		$vmNameNoSpaces = $VmName -Replace " ","-"
+		if( $vPodRouterVmdk -ne $undef ) {
+			Write-Verbose "replacing $vPodRouterVmdk"
+			Write-Verbose "  with $ReplacementVmdk"
+			try {
+				$currentVmdk = Get-Item -Path $vPodRouterVmdk
+				$currentVmdkFileName = $currentVmdk.Name
+				$backupVmdkFileName = $currentVmdkFileName + "_" + $vmNameNoSpaces + "_BACKUP"
+				Write-Verbose "Renaming existing file: $vPodRouterVmdk"
+				Rename-Item -Path $vPodRouterVmdk -NewName $backupVmdkFileName -ErrorAction 1
+			}
+			catch {
+				Write-Error "Rename failed for $vPodRouterVmdk to $backupVmdkFileName"
+				return
+			}
+			try {
+				#TODO: check for disk space before attempting copy?
+				Write-Verbose "Copying replacement file"
+				Copy-Item -LiteralPath $ReplacementVmdk -Destination $vPodRouterVmdk
+				#update the manifest file with the new hash
+			}
+			catch {
+				Write-Error "File copy failed for $ReplacementVmdk to $vPodRouterVmdk"
+				return
+			}
+			
+			Write-Verbose "Updating $Manifest"
+			Update-Manifest -Manifest $Manifest -ReplacementFile $currentVmdk.FullName -ReplacementFileHash $ReplacementVmdkHash 
+
+		}
+		else {
+			Write-Verbose "$VmName no found in $OVF. No replacement necessary."
+		}
+	}
+} #Set-VPodRouterVmdk
+
+
+Function Update-Manifest {
+<#
+.SYNOPSIS
+	Makes a backup copy of the current Manifest file
+	Updates the hash for $ReplacementFile in the Manifest
+	Generates the hash of $ReplacementFile if none is provided as $ReplacementFileHash
+
+.RETURNVALUE
+	$true if successful
+	$false if no changes or failure
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$Manifest = $(throw "need -Manifest <full_path_to_file>"),
+		$ReplacementFile = $(throw "need -ReplacementFile <full_path_to_file>"),
+		$ReplacementFileHash = ''
+	)
+	PROCESS {
+		$manifestExists = ( ($Manifest -match ".mf$") -and (Test-Path $Manifest) )
+		$replacementFileExists = Test-Path $ReplacementFile
+
+		#proceed if parameters are reasonably sane
+		if( $manifestExists -and $replacementFileExists) {
+			$mf = Get-Item -Path $Manifest
+			$vmdk = Get-Item -Path $ReplacementFile
+			$replacementFileName = Split-Path $ReplacementFile -Leaf
+			
+			if( $ReplacementFileHash -eq '' ) {
+				Write-Verbose "Please stand by, generating hash for $ReplacementFile"
+				$ReplacementFileHash = (Get-FileHash -Algorithm SHA1 -Path $vmdk.FullName).Hash.ToLower()
+				Write-Verbose "Hash generated: $ReplacementFileHash"
+			}
+			
+			$backupMF = $mf.FullName + '_BAK-MF'
+			try { 
+				Copy-Item -LiteralPath $mf -Destination $backupMF -Force
+			}
+			catch {
+				Write-Error "Failed to create backup copy of Manifest $Manifest"
+				return $false
+			}
+			
+			(Get-Content $mf) | % { 
+				$line = $_
+				# looks like "SHA1(2016-vPodRouter-v6.1-disk1.vmdk)= e7f0ea921455cd9ba5a161392c2c30355843eeac"
+				if( $line -match "SHA1\($replacementFileName\)\= ([0-9a-f]*)" ) {
+					$line = $line -replace $matches[1],$ReplacementFileHash
+				}
+				$line
+			} | Out-File -FilePath $mf -encoding "ASCII"
+			return $true
+		} 
+		else {
+			Write-Verbose "Manifest $Manifest does not exist. No changes written."
+			return $false
+		}
+	}
+} #Update-Manifest
 
 
 Function Get-VmdkHashes {
