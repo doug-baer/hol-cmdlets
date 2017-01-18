@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 18 - v1.7.0
+### 2017 January 18 - v1.7.1
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -395,7 +395,9 @@ Function Set-CleanOvf {
 					}
 				}
 
-
+				#create an array to hold the processed data because PS hates writing UTF8 properly.
+				$newOvfData = @()
+				
 				(Get-Content -Encoding "UTF8" $ovf.fullName) | % { 
 					$line = $_
 
@@ -482,7 +484,12 @@ Function Set-CleanOvf {
 							$last = $false
 						}
 					}
-				} | Out-String | % { $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "UTF8"
+				} | Out-String | % { $_.Replace("`r`n","`n") } | % { $newOvfData += $_ }
+				
+				# Note that Out-File -FilePath $ovf.fullname -encoding "UTF8" 
+				# creates the UTF8 file with the BOM header bits. 
+				# This is generally frowned upon, so we collect and write on our own.
+				[IO.File]::WriteAllLines($ovf.FullName, $newOvfData)
 
 				if( $setPassword ) {
 					Write-Host "Set Password in file: $($ovf.name)"
@@ -670,6 +677,9 @@ Function Update-Manifest {
 		$manifestExists = ( ($Manifest -match ".mf$") -and (Test-Path $Manifest) )
 		$replacementFileExists = Test-Path $ReplacementFile
 
+		#PowerShell hates UTF8 and does it wrong with the BOM header, ALWAYS.
+		$newManifest = @()
+
 		#proceed if parameters are reasonably sane
 		if( $manifestExists -and $replacementFileExists) {
 			$mf = Get-Item -Path $Manifest
@@ -698,7 +708,11 @@ Function Update-Manifest {
 					$line = $line -replace $matches[1],$ReplacementFileHash
 				}
 				$line
-			} | Out-File -FilePath $mf -encoding "ASCII"
+			} | % { $newManifest += $_ }
+			
+			# Note: Had to collect everything and write it this way to prevent the "BOM" Headers
+			# Powershell will ALWAYS write the BOM header when encoding type is UTF8
+			[IO.File]::WriteAllLines($mf, $newManifest)
 			return $true
 		} 
 		else {
