@@ -284,6 +284,7 @@ Function Test-OvfDisk {
 
 Function Set-CleanOvf {
 <#
+.SYNOPSIS
 	* Look for blank but required ovf password parameters, set them to "VMware1!"
 	* Look for and remove "stuck" NAT rules
 	* Look for CustomizeOnInstantiate flag set and unset
@@ -294,8 +295,14 @@ Function Set-CleanOvf {
 	
 	* 2016 Update: correct sizes for "full" disks (>60%?) to prevent being tagged as EZT on import
 	* Added configurable threshold and calculation of new disk size to match it
-	
-	Example: Set-CleanOvf -LibraryPath E:\HOL-Library -Threshold 65 -Verbose
+
+	* 2017 Updates (Jan): strip "nonpersistent disk" flag
+	* Print current VM name to console when in Verbose mode
+	* Changed encoding to UTF8 all around
+	* Now uses Update-Manifest function
+
+.EXAMPLE
+	Set-CleanOvf -LibraryPath E:\HOL-Library -Threshold 65 -Verbose
 	
 #>
 	[CmdletBinding()] 
@@ -332,7 +339,7 @@ Function Set-CleanOvf {
 				$fullDisks = $false
 
 				### Handle vCD/OVF "rounding error" - KB#2094271 - for $DisksAllocatedInMb
-				[xml]$xmlOvf = Get-Content $OVF
+				[xml]$xmlOvf = Get-Content -Encoding "UTF8" $OVF
 				$newDiskReferences = $xmlOvf.Envelope.References.File
 				$DisksAllocatedInMb = $xmlOvf.Envelope.DiskSection.Disk | where { $_.capacityAllocationUnits -eq 'byte * 2^20'}
 				$AllDisks = $xmlOvf.Envelope.DiskSection.Disk
@@ -389,7 +396,7 @@ Function Set-CleanOvf {
 				}
 
 
-				(Get-Content $ovf.fullName) | % { 
+				(Get-Content -Encoding "UTF8" $ovf.fullName) | % { 
 					$line = $_
 
 					foreach( $disk in $disksToResizeMb.Keys ) {
@@ -426,23 +433,36 @@ Function Set-CleanOvf {
 						}
 					}
 
+					#record the name of the current VM for use later			
+					if( $line -match '<ovf:VirtualSystem ovf:id="(.*)">' ) {
+						$currentVmName = $matches[1]
+						Write-Verbose "`tworking on VM $currentVmName"
+					}
 
 					#handle the OVF password stripping that vCD performs
 					if( $line -match 'ovf:password="true"' ) {
 						$line = $line -replace 'value=""','value="VMware1!"' 
 						$setPassword = $true
+						Write-Verbose "`tsetting password on VM $currentVmName"
 						$line
 					}
 					elseif( $line -match 'CustomizeOnInstantiate>true' ) {
 						#handle the CustomizeOnInstantiate -- we don't want it!
 						$line = $line -replace 'true','false' 
 						$setCustomize = $true
+						Write-Verbose "`tun-setting customize on VM $currentVmName"
 						$line
 					}
 					elseif( $line -match 'vcloud:ipAddressingMode="POOL"' ) {
 						#POOL ip addresses to DHCP
 						$line = $line -replace '<rasd:Connection vcloud:ipAddress="[0-9.]+" vcloud:ipAddressingMode="POOL"' , '<rasd:Connection vcloud:ipAddressingMode="DHCP"'
 						$setPool = $true
+						Write-Verbose "`tsetting DHCP on VM $currentVmName"
+						$line
+					}
+					elseif( $line -match 'vmw:key="backing.diskMode" vmw:value="independent_nonpersistent"' ) {
+						# NEW for 2017 - remove non-persistent disk setting
+						Write-Verbose "`tignoring nonpersistent disk on VM $currentVmName"
 						$line
 					}
 					else {
@@ -462,7 +482,7 @@ Function Set-CleanOvf {
 							$last = $false
 						}
 					}
-				} | Out-String | % { $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "ASCII"
+				} | Out-String | % { $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "UTF8"
 
 				if( $setPassword ) {
 					Write-Host "Set Password in file: $($ovf.name)"
@@ -483,23 +503,13 @@ Function Set-CleanOvf {
 					Write-Host -Fore Yellow "Fixed disk sizes (for EZT) in file: $($ovf.name)"
 				}
 				#Regenerated the OVF, so need a new Hash
-				if( $manifestExists ) {
-					$newOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ovf.FullName).Hash.ToLower()
-					$backupMF = $mf + '_BAK'
-					Copy-Item -LiteralPath $mf -Destination $backupMF -Force
-					(Get-Content $mf) | % { 
-						$line = $_
-						if( $line -match $ovfHash ) {
-							$line = $line -replace $ovfHash,$newOvfHash
-						}
-						$line
-					} | Out-File -FilePath $mf -encoding "ASCII"
-				}
+				Update-Manifest -Manifest $mf -ReplacementFile $ovf.FullName
 			}
 			Write-Host -fore Green "END: Cleaning $ovf"
 		}
 	}
 } #Set-CleanOvf
+
 
 
 Function Get-VmdkFromOvf {
