@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 18 - v1.7.2
+### 2017 January 19 - v1.7.3
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -2886,10 +2886,11 @@ Function Test-PowerCLI {
 Function Import-PowerCLI {
 <#
 	WORK IN PROGRESS
-	Import PowerCLI commands (v6.0+)
+	Import PowerCLI commands (v6.5)
+	!! Path changed as of 6.5: "PowerCLI" vs. "vSphere PowerCLI")
 #>
 	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
-	. 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	. 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
 	}
 } #Import-PowerCLI
 

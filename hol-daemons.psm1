@@ -1,4 +1,4 @@
-# Version 1.6.4 - 22 September 2016
+# Version 1.7.0 - 19 January 2017
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -119,7 +119,7 @@ Function Start-HolVpodExportDaemon {
 <#
 		if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
 			try {
-				. 'C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+				. 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
 			}
 			catch {
 				$NoPowerCLI = $true
@@ -307,7 +307,7 @@ Function Start-HolVpodExportDaemon {
 								$msg = "$(Get-Date) $podName - Shadowing in $cloudKey"
 								Out-File -FilePath $currentFile.FullName -InputObject $msg -Append
 $mycmd = '
-	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
+	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
 	Import-Module "E:\Scripts\hol-cmdlets.psd1"
 	Write-host "Initialized PowerCLI, loaded HOL modules"
 	Get-Module VMware*
@@ -553,7 +553,7 @@ Function Start-HolVpodImportDaemon {
 								$msg = "$(Get-Date) $podName - Shadowing in $cloudKey"
 								Out-File -FilePath $currentFile.FullName -InputObject $msg -Append
 $mycmd = '
-	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\vSphere PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
+	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
 	Import-Module "E:\Scripts\hol-cmdlets.psd1"
 		$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
 		Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 
