@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 19 - v1.7.3
+### 2017 January 19 - v1.7.4
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -31,6 +31,14 @@ if( Test-Path $holSettingsFile ) {
 	#these pods get special treatment (metadata added for VLP)
 	$wiredUpVpods = @{}
 	foreach( $vpod in $SettingsFile.Settings.VPodSettings.Metadata.WireUp ) { $wiredUpVpods.Add($vpod,"vappNetwork1") }
+
+	#cloudSets for Show-CloudPopulation
+	$knownCloudSets = @{}
+	$cloudSetCatalogs = @{}
+	foreach( $cloudSet in $SettingsFile.Settings.CloudSets.CloudSet ) { 
+		$knownCloudSets.Add($cloudSet.key,$cloudSet.cloud) 
+		$cloudSetCatalogs.Add($cloudSet.key,$cloudSet.catalogname) 
+	}
 
 	#Read/Set Default values
 	$DEFAULT_CATALOGHOST = $SettingsFile.Settings.Defaults.CatalogHost
@@ -2147,11 +2155,12 @@ Function Show-CloudPopulation {
 <#
 	Show the vapp template population of each cloud in the specified set
 	Uses Show-VpodVersions
+	Takes configuration from XML file
 #>
 	[CmdletBinding()]
 
 	PARAM (
-		$CloudSet = $(throw "need -CloudSet (one of HOL, VMWORLD, CATALOG)"),
+		$CloudSet = '',
 		$CatalogName = 'HOL-Masters',
 		$LibPath = 'E:\VMWORLD',
 		$VpodFilter = 'HOL-*'
@@ -2160,36 +2169,26 @@ Function Show-CloudPopulation {
 	BEGIN {
 		Write-Verbose "$(Get-Date) Beginning Show-CloudPopulation for $CLOUDSET"
 
-		switch ($CloudSet)
-		{
-			'HOL' {
-				Write-Host "Checking HOL clouds"
-				$theClouds = ('HOL','VW3','SC2','US24')
-				break
-			} 
-	
-			'CATALOG' {
-				Write-Host "Checking OneCloud Catalogs"
-				$theClouds = ('CAT-US01','CAT-US01-4','CAT-US01-5','CAT-NL01')
-				#bad form to hardcode this here, but it is a pain to type!
-				$CatalogName = 'Global - HOL - VMworld 2016 Hands-on Labs'
-				# old one: 'Global - HOL - VMworld 2016 Hands-on Labs'
-				break
-			} 
-	
-			'VMWORLD' {
-				Write-Host "Checking VMworld Clouds"
-				$theClouds = ('VW2','VW3','p11v2','p11v3','p11v4','p11v5','IBM','US21','NL01')
-				break
-			}
-	
-			default {
-				Write-Host -ForegroundColor Red "Unrecognized cloud set. Use one of: HOL, CATALOG, VMWORLD"
-				$theClouds = ''
-				Return
-				break
-			}
+		$possibleCloudSets = $knownCloudSets.Keys
+		if( $CloudSet -eq '' ) {
+			#display a list of known sets
+			Write-Host "Please provide the name of a known cloud set using the -CoudSet parameter."
+			Write-Host "Known CloudSets:"
+			$knownCloudSets.Keys | % { Write-Host "`t$_" }
+			return
+		}
 
+		#Make sure the provided set is known
+		if( $knownCloudSets.ContainsKey($CloudSet) ) {
+			$CatalogName = $cloudSetCatalogs[$CloudSet]
+			$theClouds = $knownCloudSets[$CloudSet]
+			Write-Host "Checking $CloudSet clouds"
+		}
+		else {	
+			Write-Host -ForegroundColor Red "Unrecognized cloud set, $cloudSet"
+			Write-Host "Use one of: "
+			$knownCloudSets.Keys | % { Write-Host "`t$_" }
+			return
 		}
 
 		if( $theClouds.count -gt 0 ) {
