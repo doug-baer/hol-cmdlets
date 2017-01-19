@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2016 December 20
+### 2017 January 18 - v1.7.2
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -198,7 +198,7 @@ Function Get-OvfMap {
 		#Output the data
 		foreach($key in $newDiskMap.Keys ) {
 			foreach( $key2 in ($newDiskMap[$key]).Keys ) { 
-				$str2 = "	" + $key2 + "->" + ($newDiskMap[$key])[$key2]
+				$str2 = "`t" + $key2 + "->" + ($newDiskMap[$key])[$key2]
 				if( $key -ne $curKey ) { 
 					Write "`n==> VM: $key"
 					$curKey = $key
@@ -284,6 +284,7 @@ Function Test-OvfDisk {
 
 Function Set-CleanOvf {
 <#
+.SYNOPSIS
 	* Look for blank but required ovf password parameters, set them to "VMware1!"
 	* Look for and remove "stuck" NAT rules
 	* Look for CustomizeOnInstantiate flag set and unset
@@ -294,8 +295,14 @@ Function Set-CleanOvf {
 	
 	* 2016 Update: correct sizes for "full" disks (>60%?) to prevent being tagged as EZT on import
 	* Added configurable threshold and calculation of new disk size to match it
-	
-	Example: Set-CleanOvf -LibraryPath E:\HOL-Library -Threshold 65 -Verbose
+
+	* 2017 Updates (Jan): strip "nonpersistent disk" flag
+	* Print current VM name to console when in Verbose mode
+	* Changed encoding to UTF8 all around
+	* Now uses Update-Manifest function
+
+.EXAMPLE
+	Set-CleanOvf -LibraryPath E:\HOL-Library -Threshold 65 -Verbose
 	
 #>
 	[CmdletBinding()] 
@@ -332,7 +339,7 @@ Function Set-CleanOvf {
 				$fullDisks = $false
 
 				### Handle vCD/OVF "rounding error" - KB#2094271 - for $DisksAllocatedInMb
-				[xml]$xmlOvf = Get-Content $OVF
+				[xml]$xmlOvf = Get-Content -Encoding "UTF8" $OVF
 				$newDiskReferences = $xmlOvf.Envelope.References.File
 				$DisksAllocatedInMb = $xmlOvf.Envelope.DiskSection.Disk | where { $_.capacityAllocationUnits -eq 'byte * 2^20'}
 				$AllDisks = $xmlOvf.Envelope.DiskSection.Disk
@@ -388,8 +395,10 @@ Function Set-CleanOvf {
 					}
 				}
 
-
-				(Get-Content $ovf.fullName) | % { 
+				#create an array to hold the processed data because PS hates writing UTF8 properly.
+				$newOvfData = @()
+				
+				(Get-Content -Encoding "UTF8" $ovf.fullName) | % { 
 					$line = $_
 
 					foreach( $disk in $disksToResizeMb.Keys ) {
@@ -426,23 +435,36 @@ Function Set-CleanOvf {
 						}
 					}
 
+					#record the name of the current VM for use later			
+					if( $line -match '<ovf:VirtualSystem ovf:id="(.*)">' ) {
+						$currentVmName = $matches[1]
+						Write-Verbose "`tworking on VM $currentVmName"
+					}
 
 					#handle the OVF password stripping that vCD performs
 					if( $line -match 'ovf:password="true"' ) {
 						$line = $line -replace 'value=""','value="VMware1!"' 
 						$setPassword = $true
+						Write-Verbose "`tsetting password on VM $currentVmName"
 						$line
 					}
 					elseif( $line -match 'CustomizeOnInstantiate>true' ) {
 						#handle the CustomizeOnInstantiate -- we don't want it!
 						$line = $line -replace 'true','false' 
 						$setCustomize = $true
+						Write-Verbose "`tun-setting customize on VM $currentVmName"
 						$line
 					}
 					elseif( $line -match 'vcloud:ipAddressingMode="POOL"' ) {
 						#POOL ip addresses to DHCP
 						$line = $line -replace '<rasd:Connection vcloud:ipAddress="[0-9.]+" vcloud:ipAddressingMode="POOL"' , '<rasd:Connection vcloud:ipAddressingMode="DHCP"'
 						$setPool = $true
+						Write-Verbose "`tsetting DHCP on VM $currentVmName"
+						$line
+					}
+					elseif( $line -match 'vmw:key="backing.diskMode" vmw:value="independent_nonpersistent"' ) {
+						# NEW for 2017 - remove non-persistent disk setting
+						Write-Verbose "`tignoring nonpersistent disk on VM $currentVmName"
 						$line
 					}
 					else {
@@ -462,7 +484,12 @@ Function Set-CleanOvf {
 							$last = $false
 						}
 					}
-				} | Out-String | % { $_.Replace("`r`n","`n") } | Out-File -FilePath $ovf.fullname -encoding "ASCII"
+				} | Out-String | % { $_.Replace("`r`n","`n") } | % { $newOvfData += $_ }
+				
+				# Note that Out-File -FilePath $ovf.fullname -encoding "UTF8" 
+				# creates the UTF8 file with the BOM header bits. 
+				# This is generally frowned upon, so we collect and write on our own.
+				[IO.File]::WriteAllLines($ovf.FullName, $newOvfData)
 
 				if( $setPassword ) {
 					Write-Host "Set Password in file: $($ovf.name)"
@@ -483,23 +510,217 @@ Function Set-CleanOvf {
 					Write-Host -Fore Yellow "Fixed disk sizes (for EZT) in file: $($ovf.name)"
 				}
 				#Regenerated the OVF, so need a new Hash
-				if( $manifestExists ) {
-					$newOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ovf.FullName).Hash.ToLower()
-					$backupMF = $mf + '_BAK'
-					Copy-Item -LiteralPath $mf -Destination $backupMF -Force
-					(Get-Content $mf) | % { 
-						$line = $_
-						if( $line -match $ovfHash ) {
-							$line = $line -replace $ovfHash,$newOvfHash
-						}
-						$line
-					} | Out-File -FilePath $mf -encoding "ASCII"
-				}
+				Update-Manifest -Manifest $mf -ReplacementFile $ovf.FullName
 			}
 			Write-Host -fore Green "END: Cleaning $ovf"
 		}
 	}
 } #Set-CleanOvf
+
+
+
+Function Get-VmdkFromOvf {
+<#
+.SYNOPSIS
+	Searches an OVF for the VMDK(s) associated with the $VmName
+	By default, uses "vpodrouterHOL" as the $VmName
+	
+.RETURNVALUE
+	Full path(s) to VMDK(s) associated with the VM matching VmName
+	
+	$undef if no VM with a matching name
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$OVF = $(throw "need -OVF (path_to_OVF_file)"),
+		$VmName = "vpodrouterHOL"
+	)
+	PROCESS {
+		if( Test-Path $OVF ) {
+			$templatePath = Split-Path (Get-Item -Path $OVF).FullName
+			#Read the OVF as XML
+			[xml]$new = Get-Content $OVF
+			$newfiles = $new.Envelope.References.File
+			$newvAppName = $new.Envelope.VirtualSystemCollection.Name 
+	
+			#Read the filenames to the OVF IDs in a hash table by diskID within the OVF
+			Write-Verbose "Reading $newvAppName OVF"
+			$newVmdks = @{}
+			foreach( $disk in $new.Envelope.References.File ) {
+				$diskID = ($disk.ID).Remove(0,5)
+				$newVmdks.Add($diskID,$disk.href)
+			}
+			## Match the VMs and their files
+			$newVms = @()
+			$newVms = $new.Envelope.VirtualSystemCollection.VirtualSystem
+			$newDiskMap = @{}
+	
+			foreach( $vm in $newVms ) {
+				$newDiskMap.Add($vm.name,@{})
+				$disks = ($vm.VirtualHardwareSection.Item | Where {$_.description -like "Hard disk*"} | Sort -Property AddressOnParent)
+				$i = 0
+				foreach( $disk in $disks ) {
+					$parentDisks = @($Disks)
+					$diskName = $parentDisks[$i].ElementName
+					$i++
+					$ref = ($disk.HostResource."#text")
+					$ref = $ref.Remove(0,$ref.IndexOf("-") + 1)
+					($newDiskMap[$vm.name]).Add($diskName,$newVmdks[$ref])
+				}
+			}
+		
+			$diskList = @()
+			#Parse the data
+			Write-Verbose "Searching for $VmName"
+			foreach($key in ($newDiskMap.Keys -match $VmName) ) {
+				foreach( $key2 in ($newDiskMap[$key]).Keys ) { 
+					$str2 = Join-Path $templatePath (($newDiskMap[$key])[$key2])
+					if( $key -ne $curKey ) { 
+						Write-Verbose "`tVM: $key"
+						$curKey = $key
+					}
+					$diskList += $str2
+				}
+			}
+			return $diskList | Sort
+		}
+		else {
+			Write-Verbose "Error, $OVF not found"
+			return
+		}
+	}
+} #Get-VmdkFromOvf
+
+
+Function Set-VPodRouterVmdk {
+<#
+.SYNOPSIS
+	Replace the VPodRouter VMDK in an OVF with another
+	Update the Manifest with the hash of the replacement VMDK
+	Default manifest filename is same as OVF, but with .mf extension instead
+	Default $ReplacementXX values are for a common replacement VMDK
+	Default VmName is 'vpodrouterhol'
+
+.NOTE
+	This is low-level mucking with the VMDKs assigned to VMs within an OVF and may result
+	in a well-formed but completely non-functional vApp. Use caution. 
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$OVF = $(throw "need -Ovf"),
+		$Manifest = ($OVF -replace '.ovf$','.mf'),
+		$VmName = 'vpodrouterhol',
+		$ReplacementVmdk = 'E:\Components\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk2.vmdk',
+		$ReplacementVmdkHash = 'e7f0ea921455cd9ba5a161392c2c30355843eeac'
+	)
+	PROCESS {
+		$vPodPath = Split-Path $OVF
+		$vPodRouterVmdk = Get-VmdkFromOvf -OVF $OVF -VmName $VmName
+		$vmNameNoSpaces = $VmName -Replace " ","-"
+		if( $vPodRouterVmdk -ne $undef ) {
+			Write-Verbose "replacing $vPodRouterVmdk"
+			Write-Verbose "  with $ReplacementVmdk"
+			try {
+				$currentVmdk = Get-Item -Path $vPodRouterVmdk
+				$currentVmdkFileName = $currentVmdk.Name
+				$backupVmdkFileName = $currentVmdkFileName + "_" + $vmNameNoSpaces + "_BACKUP"
+				Write-Verbose "Renaming existing file: $vPodRouterVmdk"
+				Rename-Item -Path $vPodRouterVmdk -NewName $backupVmdkFileName -ErrorAction 1
+			}
+			catch {
+				Write-Error "Rename failed for $vPodRouterVmdk to $backupVmdkFileName"
+				return
+			}
+			try {
+				#TODO: check for disk space before attempting copy?
+				Write-Verbose "Copying replacement file"
+				Copy-Item -LiteralPath $ReplacementVmdk -Destination $vPodRouterVmdk
+				#update the manifest file with the new hash
+			}
+			catch {
+				Write-Error "File copy failed for $ReplacementVmdk to $vPodRouterVmdk"
+				return
+			}
+			
+			Write-Verbose "Updating $Manifest"
+			Update-Manifest -Manifest $Manifest -ReplacementFile $currentVmdk.FullName -ReplacementFileHash $ReplacementVmdkHash 
+
+		}
+		else {
+			Write-Verbose "$VmName no found in $OVF. No replacement necessary."
+		}
+	}
+} #Set-VPodRouterVmdk
+
+
+Function Update-Manifest {
+<#
+.SYNOPSIS
+	Makes a backup copy of the current Manifest file
+	Updates the hash for $ReplacementFile in the Manifest
+	Generates the hash of $ReplacementFile if none is provided as $ReplacementFileHash
+
+.RETURNVALUE
+	$true if successful
+	$false if no changes or failure
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$Manifest = $(throw "need -Manifest <full_path_to_file>"),
+		$ReplacementFile = $(throw "need -ReplacementFile <full_path_to_file>"),
+		$ReplacementFileHash = ''
+	)
+	PROCESS {
+		$manifestExists = ( ($Manifest -match ".mf$") -and (Test-Path $Manifest) )
+		$replacementFileExists = Test-Path $ReplacementFile
+
+		#PowerShell hates UTF8 and does it wrong with the BOM header, ALWAYS.
+		$newManifest = @()
+
+		#proceed if parameters are reasonably sane
+		if( $manifestExists -and $replacementFileExists) {
+			$mf = Get-Item -Path $Manifest
+			$vmdk = Get-Item -Path $ReplacementFile
+			$replacementFileName = Split-Path $ReplacementFile -Leaf
+			
+			if( $ReplacementFileHash -eq '' ) {
+				Write-Verbose "Please stand by, generating hash for $ReplacementFile"
+				$ReplacementFileHash = (Get-FileHash -Algorithm SHA1 -Path $vmdk.FullName).Hash.ToLower()
+				Write-Verbose "Hash generated: $ReplacementFileHash"
+			}
+			
+			$backupMF = $mf.FullName + '_BAK-MF'
+			try { 
+				Copy-Item -LiteralPath $mf -Destination $backupMF -Force
+			}
+			catch {
+				Write-Error "Failed to create backup copy of Manifest $Manifest"
+				return $false
+			}
+			
+			(Get-Content $mf) | % { 
+				$line = $_
+				# looks like "SHA1(2016-vPodRouter-v6.1-disk1.vmdk)= e7f0ea921455cd9ba5a161392c2c30355843eeac"
+				if( $line -match "SHA1\($replacementFileName\)\= ([0-9a-f]*)" ) {
+					$line = $line -replace $matches[1],$ReplacementFileHash
+				}
+				$line
+			} | % { $newManifest += $_ }
+			
+			# Note: Had to collect everything and write it this way to prevent the "BOM" Headers
+			# Powershell will ALWAYS write the BOM header when encoding type is UTF8
+			[IO.File]::WriteAllLines($mf, $newManifest)
+			return $true
+		} 
+		else {
+			Write-Verbose "Manifest $Manifest does not exist. No changes written."
+			return $false
+		}
+	}
+} #Update-Manifest
 
 
 Function Get-VmdkHashes {
@@ -859,7 +1080,7 @@ Function Publish-VCDMediaDirectory {
 			$newItem.Entity = $unboundItem.href
 			$newItem.name = $unboundItem.name
 			$newItem.description = ""
-			Write-Host "	Adding $($unboundItem.Name) to $($catalog.Name)"
+			Write-Host "`tAdding $($unboundItem.Name) to $($catalog.Name)"
 			$catalog.extensiondata.createcatalogitem($newItem)
 		}
 	}
@@ -913,7 +1134,7 @@ Function Import-VcdMedia {
 		}
 		
 		if( $Catalog -eq "" ) {
-			Write-Host "	Importing to default catalog: $($catalogs[$k])"
+			Write-Host "`tImporting to default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -940,7 +1161,7 @@ Function Import-VcdMedia {
 		### put in a loop to ensure it is restarted if it times out. 
 		Do {
 			$retryCount += 1
-			Write-Host "	Running ovftool (try $retryCount of $maxRetries) for $vp with options: $opt"
+			Write-Host "`tRunning ovftool (try $retryCount of $maxRetries) for $vp with options: $opt"
 			ovftool $opt $src $tgt
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
@@ -1001,7 +1222,7 @@ Function Export-VcdMedia {
 		}
 		
 		if( $Catalog -eq "" ) {
-			Write-Host "	Exporting from default catalog: $($catalogs[$k])"
+			Write-Host "`tExporting from default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1028,7 +1249,7 @@ Function Export-VcdMedia {
 		### put in a loop to ensure it is restarted if it times out. 
 		Do {
 			$retryCount += 1
-			Write-Host "	Running ovftool (try $retryCount of $maxRetries) to $tgt with options: $opt"
+			Write-Host "`tRunning ovftool (try $retryCount of $maxRetries) to $tgt with options: $opt"
 			ovftool $opt $src $tgt
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
@@ -1291,7 +1512,7 @@ Function Import-Vpod {
 		$type = 'vappTemplate'
 		
 		if( $Catalog -eq "" ) {
-			Write-Host "	Importing to default catalog: $($catalogs[$k])"
+			Write-Host "`tImporting to default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1312,7 +1533,7 @@ Function Import-Vpod {
 		### need to put in a loop to ensure it is restarted if it times out. 
 		Do {
 			$retryCount += 1
-			Write-Host "	Running ovftool (try $retryCount of $MaxRetries) for $vp with options: $opt"
+			Write-Host "`tRunning ovftool (try $retryCount of $MaxRetries) for $vp with options: $opt"
 			Invoke-Expression -Command $("ovftool $opt $src '" + $tgt +"'")
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $MaxRetries) )
@@ -1364,7 +1585,7 @@ Function Export-Vpod {
 		$type = 'vappTemplate'
 
 		if( $Catalog -eq "" ) {
-			Write-Host "	 Exporting from default catalog: $($catalogs[$k])"
+			Write-Host "`tExporting from default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
 		} else {
 			$cat = $Catalog
@@ -1382,7 +1603,7 @@ Function Export-Vpod {
 		### need to put in a loop to ensure it is restarted when ovftool times out waiting for vCD
 		Do {
 			$retryCount += 1
-			Write-Host "	 Running ovftool (try $retryCount of $MaxRetries)"
+			Write-Host "`tRunning ovftool (try $retryCount of $MaxRetries)"
 			Invoke-Expression -Command $("ovftool $opt '" + $src + "' $tgt")
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $MaxRetries) )
@@ -1749,17 +1970,17 @@ Function Start-OvfTemplatePull {
 				$oldFileExists = $false
 				if( $oldDiskMap.ContainsKey($key) ) {
 					if( ($oldDiskMap[$key]).ContainsKey($key2) ) {
-						$str1 = "	OLD " + $key2 + "->" + ($oldDiskMap[$key])[$key2]
+						$str1 = "`tOLD " + $key2 + "->" + ($oldDiskMap[$key])[$key2]
 						$oldFileExists = $true
 					} 
 					else {
-						$str1 = "	NO MATCH for $key2 @ $key : new disk on VM"			
+						$str1 = "`tNO MATCH for $key2 @ $key : new disk on VM"
 					}
 				} 
 				else {
-					$str1 = "	NO MATCH for $key : net new VM"
+					$str1 = "`tNO MATCH for $key : net new VM"
 				}
-				$str2 = "	NEW " + $key2 + "->" + ($newDiskMap[$key])[$key2]
+				$str2 = "`tNEW " + $key2 + "->" + ($newDiskMap[$key])[$key2]
 				Write "`n==> HOST: $key"
 				Write $str1
 				Write $str2
@@ -1772,7 +1993,7 @@ Function Start-OvfTemplatePull {
 				if( $oldFileExists ) {
 					$oldPathEsc = doubleEscapePathSpaces $($localSeedPathC + $oldvAppName + "/" + ($oldDiskMap[$key])[$key2])
 					$command = "C:\cygwin64\bin\bash.exe --login -c 'mv " + $oldPathEsc + " " + $newPathEsc + "'"
-					Write-Host -Fore Yellow "	MOVE VMDK FILE: $command"
+					Write-Host -Fore Yellow "`tMOVE VMDK FILE: $command"
 					if( $createFile ) { $command | Out-File $fileName -Append }
 					if ( !($debug) ) { Invoke-Expression -command $command }
 					$command = $null
