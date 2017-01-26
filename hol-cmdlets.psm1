@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 19 - v1.7.4
+### 2017 January 26 - v1.7.5
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -2163,7 +2163,8 @@ Function Show-CloudPopulation {
 		$CloudSet = '',
 		$CatalogName = 'HOL-Masters',
 		$LibPath = 'E:\VMWORLD',
-		$VpodFilter = 'HOL-*'
+		$VpodFilter = 'HOL-*',
+		[Switch]$ValidateTemplates
 	)
 	
 	BEGIN {
@@ -2200,7 +2201,12 @@ Function Show-CloudPopulation {
 			}
 
 			$theClouds | % { Connect-Cloud -k $_ }
-			Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter
+			if( $ValidateTemplates ) {
+				Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter -ValidateTemplates
+			}
+			else {
+				Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter
+			}
 			Disconnect-CiServer * -Confirm:$false
 		}
 	}
@@ -2214,11 +2220,14 @@ Function Show-VpodVersions {
 
 	*** Must be authenticated to all $Clouds prior to running this function
 #>
+	[CmdletBinding()]
+
 	PARAM (
 		$Clouds = $(throw "need -Clouds (array of cloudKeys to search)"),
 		$Catalog = $DEFAULT_TARGETCLOUDCATALOG,
 		$LibPath = $DEFAULT_LOCALLIB,
-		$VpodFilter = '*'
+		$VpodFilter = '*',
+		[Switch]$ValidateTemplates
 	)
 	BEGIN {
 		#Setup variables to collect the data
@@ -2255,6 +2264,14 @@ Function Show-VpodVersions {
 						#Write-Host -Fore Yellow "DEBUG: $cloud $vAppSKU $vAppVersion"
 						#Add the information only if the SKU exists in the hashtable
 						if( ($vAppVersion -like 'v*') -and ($report.ContainsKey($vAppSKU)) ) {
+							if( $ValidateTemplates ) {
+								Write-Verbose "Checking validity of $vAppName in $cloudName"
+								$status = (Get-CiVappTemplate -Name $vAppName -Catalog $catSrc -Server $cloudName).Status
+								Write-Verbose "`t$status"
+								if( $status -ne "Resolved" ) {
+									$vAppVersion += '!'
+								}
+							}
 							if( $vAppVersion -ne $currentVersions[$vAppSKU] ) {
 								$vAppVersion += '*'
 							}
