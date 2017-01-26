@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 26 - v1.7.5
+### 2017 January 26 - v1.7.6
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -225,16 +225,15 @@ Function Test-OvfDisk {
 .EXAMPLE
 	Test-OvfDisk -OVF 'E:\HOL-Library\MyPod\MyPod.ovf'
 .EXAMPLE
-	Test-OvfDisk -OVF 'E:\HOL-Library\MyPod\MyPod.ovf' -DebugMe
-.EXAMPLE
 	Get-ChildItem E:\HOL-Library -Recurse -Filter '*.ovf' | Test-OvfDisk
 
 #>
+	[CmdletBinding()] 
+
 	PARAM(
 		[Parameter(Position=0,Mandatory=$true,HelpMessage="Path to the OVF",
 		ValueFromPipeline=$true)]
-		$OVF,
-		[Switch]$DebugMe
+		$OVF
 	)
 	PROCESS {
 		if( $OVF.GetType().ToString() -eq "System.IO.FileInfo" ) { $OVF = $OVF.FullName }
@@ -263,26 +262,22 @@ Function Test-OvfDisk {
 			
 			
 			if( $diskSizeDifference -lt 0 ) {
-				if( $DebugMe ) {
-					Write-Host -fore Green "BEFORE"
-					Write-Host -Fore Yellow "`tSPECIFIED:  $diskSpecifiedSize"
-					Write-Host -Fore Yellow "`tPOPULATED:  $diskRequiredSize"
-					Write-Host -Fore Yellow "`tREFERENCE:  $diskFileSize"
-					Write-Host -Fore Yellow "`tDIFFERENCE: $diskSizeDifference"
-				}
+				Write-Verbose "==BEFORE=="
+				Write-Verbose "`tSPECIFIED:  $diskSpecifiedSize"
+				Write-Verbose "`tPOPULATED:  $diskRequiredSize"
+				Write-Verbose "`tREFERENCE:  $diskFileSize"
+				Write-Verbose "`tDIFFERENCE: $diskSizeDifference"
 
 				$increaseMB = [math]::Ceiling($(-$diskSizeDifference / 1MB))
 				Write-Output ("  Disk {0} is {1:N0} bytes too small.`n`tIncrease from {2:N0} to {3:N0} MB" -f $diskId, $(-$diskSizeDifference), $diskCapacity, ($diskCapacity + $increaseMB) )
 				$disksToResize.Add($diskID, $diskSpecifiedSize + $increaseMB * 1MB)
 				$diskCapacity += $increaseMB
 
-				if( $DebugMe ) {
-					Write-Host -fore Green "AFTER"
-					Write-Host -Fore Yellow "`tSPECIFIED:  $($diskCapacity * 1MB)"
-					Write-Host -Fore Yellow "`tPOPULATED:  $diskRequiredSize"
-					Write-Host -Fore Yellow "`tREFERENCE:  $diskFileSize"
-					Write-Host -Fore Yellow "`tDIFFERENCE: $($diskCapacity * 1MB - $diskFileSize)"
-				}
+				Write-Verbose "==AFTER=="
+				Write-Verbose "`tSPECIFIED:  $($diskCapacity * 1MB)"
+				Write-Verbose "`tPOPULATED:  $diskRequiredSize"
+				Write-Verbose "`tREFERENCE:  $diskFileSize"
+				Write-Verbose "`tDIFFERENCE: $($diskCapacity * 1MB - $diskFileSize)"
 			}
 		}
 		Write-Host -fore Green "END: Checking $ovf"
@@ -834,12 +829,13 @@ Function Add-CIVAppShadows {
 	$orgVdcNames | % { $orgVDCs += (Get-OrgVDC $_) }
 	Add-CIVAppShadows -o $orgVdcs -v $vApps
 #>
+	[CmdletBinding()]
+	
 	PARAM (
 		$vApps = $(throw "need -vApps"), 
 		$OrgVDCs = $(throw "need -OrgVdcs"),
 		$SleepTime = 120,
-		[Switch]$Cleanup,
-		[Switch]$DebugMe
+		[Switch]$Cleanup
 	)
 	
 	PROCESS {
@@ -873,7 +869,7 @@ Function Add-CIVAppShadows {
 			#pulling the "Status" from the object returned by New-vApp isn't right. This works.
 			$shadows = @{}
 			$shadowPattern = $($vApp.Name) + "_shadow_*"
-			if( $DebugMe ) { Write-Host -Fore Yellow "DEBUG: looking for $shadowPattern" }
+			Write-Verbose "Looking for $shadowPattern"
 			foreach( $shadow in $(Get-CIVApp $shadowPattern) ) { 
 				$shadows.Add( $shadow.Name , $(Get-CIView -CIObject $shadow) )
 			}
@@ -894,7 +890,7 @@ Function Add-CIVAppShadows {
 
 				#sleep between checks
 				if( $shadows.Count -gt 0 ) {
-					if( $DebugMe ) { Write-Host -Fore Yellow "DEBUG: Sleeping 120 sec at $(Get-Date)" }
+					Write-Verbose "Sleeping 120 sec at $(Get-Date)"
 					Sleep -sec $SleepTime
 				}
 			}
@@ -1101,6 +1097,8 @@ Function Import-VcdMedia {
 	Imports the ISO( or OVA) located at <library>\ISONAME.<TYPE>
 	Will attempt to resume until successful completion (or 20x)
 #>
+	[CmdletBinding()]
+	
 	PARAM (
 		$Key = $cloudKey,
 		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ "" } ),
@@ -1157,12 +1155,12 @@ Function Import-VcdMedia {
 	
 		$tgt = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp"
 
-		Write-Host -fore Yellow "DEBUG: Target is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
+		Write-Verbose "Target is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
 
 		#Options ( additional options to OVFtool like '--overwrite')
 		$opt = $Options
 
-		Write-Host -fore Yellow "DEBUG: Importing from $src with options: $opt"
+		Write-Verbose "Importing from $src with options: $opt"
 
 		Write-Host -fore Green "Beginning import of media $MediaName at $(Get-Date)"
 
@@ -1189,6 +1187,8 @@ Function Export-VcdMedia {
 	Imports the ISO( or OVA) located at <library>\ISONAME.<TYPE>
 	Will attempt to resume until successful completion (or 20x)
 #>
+	[CmdletBinding()]
+	
 	PARAM (
 		$Key = $cloudKey,
 		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ "" } ),
@@ -1245,12 +1245,12 @@ Function Export-VcdMedia {
 	
 		$src = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp.$mediaType"
 
-		Write-Host -fore Yellow "DEBUG: Source is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
+		Write-Verbose "Source is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
 
 		#Options ( additional options to OVFtool like '--overwrite')
 		$opt = $Options
 
-		Write-Host -fore Yellow "DEBUG: Exporting from $src with options: $opt"
+		Write-Verbose "Exporting from $src with options: $opt"
 
 		Write-Host -fore Green "Beginning export of media $MediaName at $(Get-Date)"
 
@@ -1471,6 +1471,7 @@ Function Import-Vpod {
 	Will attempt to resume until successful completion (or 5x) -- Imports should NOT be failing
 	Written for OVFTOOL 3.x ... works with 4.1.0
 #>
+	[CmdletBinding()]
 	PARAM (
 		$Key = $cloudKey,
 		$Catalog = $(if( $catalogs.ContainsKey($Key) ){ $catalogs[$Key] } else{ $DEFAULT_TARGETCLOUDCATALOG } ),
@@ -1529,13 +1530,13 @@ Function Import-Vpod {
 		$src = $ovfPath
 		$tgt = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $ovdcs[$k] + "&catalog=$cat&$type=$vp"
 
-		Write-Host -fore Yellow "DEBUG: Target is: $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k])"
+		Write-Verbose "Target is: $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k])"
 
 		#Options ( additional options to OVFtool like '--overwrite')
 		#PS doesn't seem to like passing multiple params to ovftool..
 		$opt = $Options
 
-		Write-Host -fore Yellow "DEBUG: $opt from $src to $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k]) catalog: $cat"
+		Write-Verbose "$opt from $src to $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k]) catalog: $cat"
 
 		Write-Host -fore Green "Beginning import of vPod $vPodName at $(Get-Date)"
 		### need to put in a loop to ensure it is restarted if it times out. 
@@ -1680,6 +1681,7 @@ Function Start-OvfTemplatePull {
 	Start-OvfTemplatePull -OldName HOL-SDC-1400-v1 -NewName HOL-SDC-1400-v2 -CatalogHost MAIN-CATALOG -RemoteLib /cygdrive/c/MasterLibrary	-LocalSeed C:\Seeds\ -LocalLib C:\LocalLibrary -SSHuser holuser -OutputPath C:\LabMaps
 
 #>
+	[CmdletBinding()]
 	PARAM(
 		[Parameter(Position=0,Mandatory=$false,HelpMessage="Name of the catalog host",
 		ValueFromPipeline=$False)]
@@ -1711,13 +1713,13 @@ Function Start-OvfTemplatePull {
 	
 		[Parameter(Position=7,Mandatory=$false,HelpMessage="Path to output files",
 		ValueFromPipeline=$False)]
-		[System.String]$OutputPath = $DEFAULT_MAPOUTPUTPATH
+		[System.String]$OutputPath = $DEFAULT_MAPOUTPUTPATH,
+		
+		[Switch]$DryRun
 	)
 	BEGIN {
 		Write-Host "=*=*=*=* OvfTemplatePull $NewName Start $(Get-Date) *=*=*=*="
-
-		$debug = $false
-		If ($debug) { Write-Host -Fore Yellow " ### DEBUG IS ON ### " }
+		if( $DryRun ) { Write-Verbose "==> Dry run mode." }
 
 		try { 
 			if( Test-Path $OutputPath ) {
@@ -1750,7 +1752,7 @@ Function Start-OvfTemplatePull {
 		function exec-ssh( $cmd1 ) {
 			$remoteCommand = '"' + $cmd1 + '"'
 			$command = "ssh " + $sshOptions + " " + $SSHuser + "@" + $sshComputer + " " + $remoteCommand
-			if( $debug ) { Write-Host "EXEC-SSH:" $command }
+			Write-Verbose "EXEC-SSH:" $command
 			if( $createFile ) { 
 				$command | Out-File $fileName -Append 
 			} else {
@@ -1796,7 +1798,7 @@ Function Start-OvfTemplatePull {
 				Write-Host -Fore Red "ERROR: CYGWIN $req not present. Unable to continue"
 				CleanupAndExit
 			} Else {
-				If( $debug ) { Write-Host -fore Yellow "FOUND: CYGWIN $req" }
+				Write-Verbose "FOUND: CYGWIN $req"
 			}
 		}
 	}
@@ -1824,7 +1826,7 @@ Function Start-OvfTemplatePull {
 			#run the LFTP in cygwin
 			$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $lftpCmd + "'"
 			If( $createFile ) { $lftpCmd | Out-File $fileName -Append }
-			If( $debug ) { Write-Host -fore Yellow "EXEC-LFTP: $command " } 
+			Write-Verbose "EXEC-LFTP: $command "
 			Invoke-Expression -command $command
 			
 			## due to issues with lftp transferring and sometimes corrupting files, 
@@ -1849,7 +1851,7 @@ Function Start-OvfTemplatePull {
 			$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
 ## NEW COMMAND
 	
-			if( $debug ) { Write-Host $command }
+			Write-Verbose $command
 			if( $createFile ) { $command | Out-File $fileName -append } 
 	
 			Write-Host "Getting new OVF via SSH..."
@@ -2001,9 +2003,9 @@ Function Start-OvfTemplatePull {
 				if( $oldFileExists ) {
 					$oldPathEsc = doubleEscapePathSpaces $($localSeedPathC + $oldvAppName + "/" + ($oldDiskMap[$key])[$key2])
 					$command = "C:\cygwin64\bin\bash.exe --login -c 'mv " + $oldPathEsc + " " + $newPathEsc + "'"
-					Write-Host -Fore Yellow "`tMOVE VMDK FILE: $command"
+					Write-Verbose "`tMOVE VMDK FILE: $command"
 					if( $createFile ) { $command | Out-File $fileName -Append }
-					if ( !($debug) ) { Invoke-Expression -command $command }
+					if ( !($DryRun) ) { Invoke-Expression -command $command }
 					$command = $null
 				}
 			}
@@ -2021,7 +2023,7 @@ Function Start-OvfTemplatePull {
 		# non-admin users... use '-tr' instead
 		#	EXAMPLE rsync -tvhPr --stats user@remote:/SOURCE/ /cygdrive/c/LOCAL_TARGET
 		
-		if( $debug ) { 
+		if( $DryRun ) { 
 			#the -n performs the "dry run" analysis
 			$rsyncOpts = '-tvhPrIn --stats --delete --max-delete=6' 
 		} 
@@ -2047,7 +2049,7 @@ Function Start-OvfTemplatePull {
 	
 		$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
 	
-		if( $debug ) { Write-Host "REPLICATE:" $command }
+		Write-Verbose "REPLICATE:" $command
 		if( $createFile ) { $syncCmd | Out-File $fileName -Append }
 		
 		#A little validation before the call ... just to make sure something bad didn't happen
@@ -2070,7 +2072,7 @@ Function Start-OvfTemplatePull {
 			$oldSeedDir.EnumerateDirectories() | % {$count +=10}
 			if( $count -lt 5 ) {
 				Write-Host "Removing SEED directory $($oldSeedDir.FullName)"
-				if( !($debug) ) { Remove-Item $oldSeedDir -Recurse -Confirm:$false }
+				if( !($DryRun) ) { Remove-Item $oldSeedDir -Recurse -Confirm:$false }
 			}
 			else {
 				$msg = "`nWARNING!! $count files remaining in SEED directory: $($oldSeedDir.FullName)"
@@ -2261,7 +2263,7 @@ Function Show-VpodVersions {
 					if( $vAppName -like $VpodFilter ) {
 						$vAppSKU = $vAppName.Substring(0,$vAppName.LastIndexOf('-'))
 						$vAppVersion = $vAppName.Replace("$vAppSKU-",'')
-						#Write-Host -Fore Yellow "DEBUG: $cloud $vAppSKU $vAppVersion"
+						Write-Verbose "DEBUG: $cloud $vAppSKU $vAppVersion"
 						#Add the information only if the SKU exists in the hashtable
 						if( ($vAppVersion -like 'v*') -and ($report.ContainsKey($vAppSKU)) ) {
 							if( $ValidateTemplates ) {
@@ -2278,7 +2280,7 @@ Function Show-VpodVersions {
 							$report[$vAppSKU][$cloud] += "$vAppVersion "
 						}
 					} else {
-						Write-Host -Fore Yellow "DEBUG: $cloud discarding $vAppName by filter"
+						Write-Verbose "$cloud discarding $vAppName by filter"
 					}
 				}
 			}
