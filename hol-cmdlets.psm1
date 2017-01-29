@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 26 - v1.7.6
+### 2017 January 28 - v1.7.7
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -2036,20 +2036,20 @@ Function Start-OvfTemplatePull {
 		#rsync needs SSH path to be double-quoted AND double-escaped:
 		# user@target:"/cygdrive/.../path\\ with\\ spaces"
 		$remotePathRsync = $RemoteLib + $newvAppName
-	# $remotePathRsyncEsc = $remotePathRsync.Replace(" ","\ ")
+		# $remotePathRsyncEsc = $remotePathRsync.Replace(" ","\ ")
 		$remotePathRsyncEsc = doubleEscapePathSpaces $remotePathRsync
 	
 		#rsync needs local path to be escaped
 		# /cygdrive/.../path\ with\ spaces/
 		# [05/22/2013-DB .. what about using -s option to rsync? need to test]
-	# $targetPathRsyncEsc = doubleEscapePathSpaces $($TargetPath + $newvAppName)
+		# $targetPathRsyncEsc = doubleEscapePathSpaces $($TargetPath + $newvAppName)
 		$targetPathRsyncEsc = $($localLibPathC + $newvAppName).Replace(" ","\ ")
 		
 		$syncCmd = "rsync $rsyncOpts " + $SSHuser + "@" + $sshComputer + ':"' + $remotePathRsyncEsc + '/" "' + $targetPathRsyncEsc + '"'
 	
 		$command = "C:\cygwin64\bin\bash.exe --login -c " + "'" + $syncCmd + "'"
 	
-		Write-Verbose "REPLICATE:" $command
+		Write-Verbose "REPLICATE: $command"
 		if( $createFile ) { $syncCmd | Out-File $fileName -Append }
 		
 		#A little validation before the call ... just to make sure something bad didn't happen
@@ -2812,10 +2812,10 @@ Function Get-CloudInfoFromKey {
 	)
 	PROCESS {
 		if( $vcds.ContainsKey($Key) ) {
-			Write-Verbose "Looking up $cloudKey in CLOUDS list from XML config file."
+			Write-Verbose "Looking up $Key in CLOUDS list from XML config file."
 			Return ($($vcds[$Key]),$($orgs[$Key]),$($catalogs[$Key]))
 		} else {
-			Write-Verbose "$cloudKey not found in CLOUDS list"
+			Write-Verbose "$Key not found in CLOUDS list"
 			Return
 		}
 	}
