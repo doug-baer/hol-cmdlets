@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 28 - v1.7.7
+### 2017 January 30 - v1.7.8
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -827,13 +827,13 @@ Function Add-CIVAppShadows {
 	$vAppNames | % { $vApps += (Get-CIVAppTemplate $_ -Catalog MY_CATALOG) } 
 	$orgVDCs = @()
 	$orgVdcNames | % { $orgVDCs += (Get-OrgVDC $_) }
-	Add-CIVAppShadows -o $orgVdcs -v $vApps
+	Add-CIVAppShadows -OrgVDCs $orgVdcs -vApps $vApps
 #>
 	[CmdletBinding()]
 	
 	PARAM (
 		$vApps = $(throw "need -vApps"), 
-		$OrgVDCs = $(throw "need -OrgVdcs"),
+		$OrgVDCs = $(throw "need -OrgVDCs"),
 		$SleepTime = 120,
 		[Switch]$Cleanup
 	)
@@ -918,8 +918,8 @@ Function Add-CIVAppShadowsWait {
 	Quick and dirty... no error checking.. can go infinite if the import fails
 #>
 	PARAM (
-		$vApp = $(throw "need -vApps"), 
-		$OrgVDCs = $(throw "need -OrgVdcs"),
+		$vApp = $(throw "need -vApp"), 
+		$OrgVDCs = $(throw "need -OrgVDCs"),
 		$SleepTime = 300
 	)
 	PROCESS {
@@ -928,7 +928,10 @@ Function Add-CIVAppShadowsWait {
 			Sleep -sec $SleepTime
 			$vApp = Get-civapptemplate $vApp.name -catalog $vApp.catalog
 		}
-		Add-CIVAppShadows -o $OrgVDCs -v $vApp
+		#sleep one more time to allow vCD to catch up, then look it up again
+		Sleep -sec $SleepTime
+		$vApp = Get-civapptemplate $vApp.name -catalog $vApp.catalog
+		Add-CIVAppShadows -OrgVDCs $OrgVDCs -vApps $vApp
 	}
 } #Add-CIVAppShadowsWait
 
@@ -951,7 +954,7 @@ Function Add-ShadowBatch {
 	$vpod = Get-ChildItem $LIBRARY -Filter $filter
 	if( $vpod.Count -gt 0 ) {
 		$vpodName = $vpod[0].Name
-		add-civappshadows -o $ov -v $(get-civapptemplate $vpodName)
+		Add-CIVAppShadows -orgvdcs $ov -vapps $(get-civapptemplate $vpodName)
 	} else {
 		Write-Host "$vpod matching $filter not found in $LIBRARY"
 	}

@@ -1,4 +1,4 @@
-# Version 1.7.0 - 19 January 2017
+# Version 1.7.1 - 30 January 2017
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -317,7 +317,7 @@ $mycmd = '
 	If($orgVdcs) { 
 		Try { 
 			$vPod = Get-civappTemplate -Catalog ' + $TargetCloudCatalog + ' -Name ' + $podName + '
-			Add-CiVappShadowsWait -o $orgVdcs -v $vPod
+			Add-CiVappShadowsWait -orgvdcs $orgVdcs -vapps $vPod
 		} Catch { Write-Host "No matching vPod" }
 	}
 	$vcd | Disconnect-CiServer -Confirm:$false'
@@ -330,6 +330,8 @@ $mycmd = '
 				} 
 				# Mark finished and send Email
 				$currentFile = Rename-HolWorkingFile $podName $currentFile 'FINISHED'
+				#Remove completed Jobs
+				Get-Job -State Completed | Remove-Job
 				# Send the "all clear" email for local work
 				Send-HolDaemonEmail -To $Email -Site $Site -Subject $podName -Body "Completed local processing of $podName."
 				
@@ -561,7 +563,7 @@ $mycmd = '
 		If($orgVdcs) { 
 			Try { 
 				$vPod = Get-civappTemplate -Catalog ' + $TargetCloudCatalog + ' -Name ' + $podName + '
-				Add-CiVappShadowsWait -o $orgVdcs -v $vPod
+				Add-CiVappShadowsWait -orgvdcs $orgVdcs -vapps $vPod
 			} Catch { Write-Host "No matching vPod" }
 		}
 		$vcd | Disconnect-CiServer -Confirm:$false'
@@ -583,6 +585,7 @@ $mycmd = '
 
 				# Mark finished and send Email
 				$currentFile = Rename-HolWorkingFile $podName $currentFile 'FINISHED'
+				Get-Job -State Completed | Remove-Job
 				Send-HolDaemonEmail -To $Email -Site $Site -Subject $podName -Body "Completed local processing of $podName."
 
 			} Else {
