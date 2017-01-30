@@ -839,6 +839,7 @@ Function Add-CIVAppShadows {
 	)
 	
 	PROCESS {
+		Write-Verbose "Starting Add-CIVAppShadows"
 		$leaseTime = New-Object System.Timespan 24,0,0
 
 		foreach( $vApp in $vApps ) {
@@ -908,6 +909,7 @@ Function Add-CIVAppShadows {
 				$shadowList | Remove-CIVapp -Confirm:$false
 			}
 		}
+		Write-Verbose "Finished Add-CIVAppShadows"
 	}
 } #Add-CIVAppShadows
 
@@ -923,6 +925,7 @@ Function Add-CIVAppShadowsWait {
 		$SleepTime = 300
 	)
 	PROCESS {
+		Write-Verbose "Starting Add-CIVAppShadowsWait"
 		while( $vApp.status -ne "Resolved" ) {
 			write-host "$($vApp.status) : $(($vApp.ExtensionData.Tasks).Task[0].Progress)% complete"
 			Sleep -sec $SleepTime
@@ -931,7 +934,9 @@ Function Add-CIVAppShadowsWait {
 		#sleep one more time to allow vCD to catch up, then look it up again
 		Sleep -sec $SleepTime
 		$vApp = Get-civapptemplate $vApp.name -catalog $vApp.catalog
+		Write-Verbose "Calling Add-CIVAppShadows"
 		Add-CIVAppShadows -OrgVDCs $OrgVDCs -vApps $vApp
+		Write-Verbose "Finishing Add-CIVAppShadowsWait"
 	}
 } #Add-CIVAppShadowsWait
 

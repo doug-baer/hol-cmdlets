@@ -563,7 +563,7 @@ $mycmd = '
 		If($orgVdcs) { 
 			Try { 
 				$vPod = Get-civappTemplate -Catalog ' + $TargetCloudCatalog + ' -Name ' + $podName + '
-				Add-CiVappShadowsWait -orgvdcs $orgVdcs -vapps $vPod
+				Add-CiVappShadowsWait -orgvdcs $orgVdcs -vapp $vPod
 			} Catch { Write-Host "No matching vPod" }
 		}
 		$vcd | Disconnect-CiServer -Confirm:$false'
