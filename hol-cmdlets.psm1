@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 January 30 - v1.7.8
+### 2017 February 7 - v1.7.10
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -615,8 +615,9 @@ Function Set-VPodRouterVmdk {
 		$OVF = $(throw "need -Ovf"),
 		$Manifest = ($OVF -replace '.ovf$','.mf'),
 		$VmName = 'vpodrouterhol',
-		$ReplacementVmdk = 'E:\Components\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk2.vmdk',
-		$ReplacementVmdkHash = 'e7f0ea921455cd9ba5a161392c2c30355843eeac'
+		$ReplacementVmdk = 'E:\BASE\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk1.vmdk',
+		$ReplacementVmdkHash = 'f88925781b47a1c99bd59919ce69388acd36344a',
+		[switch]$RemoveBackup
 	)
 	PROCESS {
 		$vPodPath = Split-Path $OVF
@@ -627,6 +628,7 @@ Function Set-VPodRouterVmdk {
 			Write-Verbose "  with $ReplacementVmdk"
 			try {
 				$currentVmdk = Get-Item -Path $vPodRouterVmdk
+				$currentVmdkLength = $currentVmdk.Length
 				$currentVmdkFileName = $currentVmdk.Name
 				$backupVmdkFileName = $currentVmdkFileName + "_" + $vmNameNoSpaces + "_BACKUP"
 				Write-Verbose "Renaming existing file: $vPodRouterVmdk"
@@ -639,20 +641,29 @@ Function Set-VPodRouterVmdk {
 			try {
 				#TODO: check for disk space before attempting copy?
 				Write-Verbose "Copying replacement file"
+				$replacementVmdkLength = (Get-Item $ReplacementVmdk).Length
 				Copy-Item -LiteralPath $ReplacementVmdk -Destination $vPodRouterVmdk
-				#update the manifest file with the new hash
 			}
 			catch {
 				Write-Error "File copy failed for $ReplacementVmdk to $vPodRouterVmdk"
 				return
 			}
 			
-			Write-Verbose "Updating $Manifest"
+			Write-Verbose "Updating $Manifest for VMDK"
 			Update-Manifest -Manifest $Manifest -ReplacementFile $currentVmdk.FullName -ReplacementFileHash $ReplacementVmdkHash 
-
+			if( $RemoveBackup ) {
+				Remove-Item -Path $backupVmdkFileName -Confirm:$false
+			}
+			
+			#also have to update OVF with length of the replacement File
+			Write-Verbose "Updating $Manifest for OVF"
+			$ReplacementOvf = $(Get-Item $OVF).FullName
+			$ReplacementOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ReplacementOvf).Hash.ToLower()
+			Update-Manifest -Manifest $Manifest -ReplacementFile $ReplacementOvf -ReplacementFileHash $ReplacementOvfHash 
+			
 		}
 		else {
-			Write-Verbose "$VmName no found in $OVF. No replacement necessary."
+			Write-Verbose "$VmName not found in $OVF. No replacement necessary."
 		}
 	}
 } #Set-VPodRouterVmdk
@@ -918,6 +929,7 @@ Function Add-CIVAppShadowsWait {
 <#
 	Wait for a single template to be "Resolved" then kick off shadows
 	Quick and dirty... no error checking.. can go infinite if the import fails
+	NOTE: this one only takes ONE vAppTemplate and not multiple
 #>
 	PARAM (
 		$vApp = $(throw "need -vApp"), 
@@ -2919,6 +2931,71 @@ Function Import-PowerCLI {
 	. 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
 	}
 } #Import-PowerCLI
+
+
+Function Update-TextFile {
+<#
+.SYNOPSIS
+	Makes a backup copy of the current file with a "_BAK" extension
+	searches for lines matching $LinePattern
+	On matching lines, replaces $OldString with $NewString
+
+.RETURNVALUE
+	$true if successful
+	$false if no changes or failure
+#>
+	[CmdletBinding()] 
+	
+	PARAM(
+		$FilePath = $(throw "need -FilePath <full_path_to_file>"),
+		$LinePattern = $(throw "need -LinePattern <pattern to match>"),
+		$OldString = $(throw "need -OldString <existing text>"),
+		$NewString = $(throw "need -NewString <replacement text>")
+	)
+	PROCESS {
+		Write-Verbose "Looking for $FilePath"
+		$fileExists = Test-Path $FilePath
+
+		#PowerShell hates UTF8 and does it wrong with the BOM header, ALWAYS.
+		$newFileData = @()
+
+		#proceed if parameters are reasonably sane
+		if( $fileExists ) {
+			$mf = Get-Item -Path $FilePath			
+			$backupFile = $mf.FullName + '_BAK'
+			try { 
+				Write-Verbose "Backing up $FilePath to $backupFile"
+				Copy-Item -LiteralPath $mf -Destination $backupFile -Force
+			}
+			catch {
+				Write-Error "Failed to create backup copy of $FilePath"
+				return $false
+			}
+
+			Write-Verbose "Parsing the file"
+			$lineCount = 0
+			(Get-Content $mf) | % { 
+				$lineCount += 1
+				$line = $_
+				if( $line -match $LinePattern ) {
+					Write-Verbose "Line $lineCount matches $LinePattern"
+					$line = $line -replace $OldString,$NewString
+				}
+				$line
+			} | % { $newFileData += $_ }
+			
+			# Note: Had to collect everything and write it this way to prevent the "BOM" Headers
+			# Powershell will ALWAYS write the BOM header when encoding type is UTF8
+			Write-Verbose "Read finished. Writing output file"
+			[IO.File]::WriteAllLines($mf, $newFileData)
+			return $true
+		} 
+		else {
+			Write-Verbose "File $FilePath does not exist. No changes written."
+			return $false
+		}
+	}
+} #Update-TextFile
 
 
 ###########################################################################
