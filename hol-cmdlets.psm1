@@ -663,7 +663,7 @@ Function Set-VPodRouterVmdk {
 			}
 			
 			#also have to update OVF with length of the replacement file and update the vpodrouter's name
-			Update-TextFile -FilePath $OVF -LinePattern 'vpodrouterhol' -OldString $VmName -NewString $NewVmName
+			Update-TextFile -FilePath $OVF -LinePattern 'vpodrouterhol' -OldString $VmName -NewString $ReplacementVmName
 			Update-TextFile -FilePath $OVF -LinePattern $currentVmdkFileName -OldString $currentVmdkLength -NewString $replacementVmdkLength
 
 			Write-Verbose "Updating $Manifest for OVF"
