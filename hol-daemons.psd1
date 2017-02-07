@@ -12,7 +12,7 @@
 RootModule = 'hol-daemons.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.7.1'
+ModuleVersion = '1.7.2'
 
 # ID used to uniquely identify this module
 GUID = '1d45d3b0-6bd5-4b02-a345-f89d527d7d72'

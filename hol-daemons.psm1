@@ -1,4 +1,4 @@
-# Version 1.7.1 - 30 January 2017
+# Version 1.7.2 - 30 January 2017
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -317,7 +317,7 @@ $mycmd = '
 	If($orgVdcs) { 
 		Try { 
 			$vPod = Get-civappTemplate -Catalog ' + $TargetCloudCatalog + ' -Name ' + $podName + '
-			Add-CiVappShadowsWait -orgvdcs $orgVdcs -vapps $vPod
+			Add-CiVappShadowsWait -orgvdcs $orgVdcs -vapp $vPod
 		} Catch { Write-Host "No matching vPod" }
 	}
 	$vcd | Disconnect-CiServer -Confirm:$false'
