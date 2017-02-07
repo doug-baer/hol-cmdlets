@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 February 7 - v1.7.10
+### 2017 February 7 - v1.7.12
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -604,6 +604,7 @@ Function Set-VPodRouterVmdk {
 	Default manifest filename is same as OVF, but with .mf extension instead
 	Default $ReplacementXX values are for a common replacement VMDK
 	Default VmName is 'vpodrouterhol'
+	Also updates the name of the VM to $ReplacementVmName
 
 .NOTE
 	This is low-level mucking with the VMDKs assigned to VMs within an OVF and may result
@@ -617,6 +618,7 @@ Function Set-VPodRouterVmdk {
 		$VmName = 'vpodrouterhol',
 		$ReplacementVmdk = 'E:\BASE\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk1.vmdk',
 		$ReplacementVmdkHash = 'f88925781b47a1c99bd59919ce69388acd36344a',
+		$ReplacementVmName = 'vpodrouter61',
 		[switch]$RemoveBackup
 	)
 	PROCESS {
@@ -660,8 +662,10 @@ Function Set-VPodRouterVmdk {
 				Remove-Item -Path $backupVmdkFileName -Confirm:$false
 			}
 			
-			#also have to update OVF with length of the replacement File
+			#also have to update OVF with length of the replacement file and update the vpodrouter's name
+			Update-TextFile -FilePath $OVF -LinePattern 'vpodrouterhol' -OldString $VmName -NewString $NewVmName
 			Update-TextFile -FilePath $OVF -LinePattern $currentVmdkFileName -OldString $currentVmdkLength -NewString $replacementVmdkLength
+
 			Write-Verbose "Updating $Manifest for OVF"
 			$ReplacementOvf = $(Get-Item $OVF).FullName
 			$ReplacementOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ReplacementOvf).Hash.ToLower()
@@ -2956,7 +2960,8 @@ Function Update-TextFile {
 		$FilePath = $(throw "need -FilePath <full_path_to_file>"),
 		$LinePattern = $(throw "need -LinePattern <pattern to match>"),
 		$OldString = $(throw "need -OldString <existing text>"),
-		$NewString = $(throw "need -NewString <replacement text>")
+		$NewString = $(throw "need -NewString <replacement text>"),
+		[Switch]$Backup
 	)
 	PROCESS {
 		Write-Verbose "Looking for $FilePath"
@@ -2967,17 +2972,18 @@ Function Update-TextFile {
 
 		#proceed if parameters are reasonably sane
 		if( $fileExists ) {
-			$mf = Get-Item -Path $FilePath			
-			$backupFile = $mf.FullName + '_BAK'
-			try { 
-				Write-Verbose "Backing up $FilePath to $backupFile"
-				Copy-Item -LiteralPath $mf -Destination $backupFile -Force
+			$mf = Get-Item -Path $FilePath
+			if( $Backup ) {
+				$backupFile = $mf.FullName + '_BAK'
+				try { 
+					Write-Verbose "Backing up $FilePath to $backupFile"
+					Copy-Item -LiteralPath $mf -Destination $backupFile -Force
+				}
+				catch {
+					Write-Error "Failed to create backup copy of $FilePath"
+					return $false
+				}
 			}
-			catch {
-				Write-Error "Failed to create backup copy of $FilePath"
-				return $false
-			}
-
 			Write-Verbose "Parsing the file"
 			$lineCount = 0
 			(Get-Content $mf) | % { 
@@ -2995,7 +3001,7 @@ Function Update-TextFile {
 			Write-Verbose "Read finished. Writing output file"
 			[IO.File]::WriteAllLines($mf, $newFileData)
 			return $true
-		} 
+		}
 		else {
 			Write-Verbose "File $FilePath does not exist. No changes written."
 			return $false
