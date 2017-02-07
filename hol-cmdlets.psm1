@@ -622,6 +622,11 @@ Function Set-VPodRouterVmdk {
 	PROCESS {
 		$vPodPath = Split-Path $OVF
 		$vPodRouterVmdk = Get-VmdkFromOvf -OVF $OVF -VmName $VmName
+		if( $vPodRouterVmdk.Count -gt 1 ) {
+			Write-Verbose "More than one VMDK returned!"
+			Write-Error "Set-VPodRouterVmdk only handles one disk on the vpodrouter"
+			return
+		}
 		$vmNameNoSpaces = $VmName -Replace " ","-"
 		if( $vPodRouterVmdk -ne $undef ) {
 			Write-Verbose "replacing $vPodRouterVmdk"
@@ -656,6 +661,7 @@ Function Set-VPodRouterVmdk {
 			}
 			
 			#also have to update OVF with length of the replacement File
+			Update-TextFile -FilePath $OVF -LinePattern $currentVmdkFileName -OldString $currentVmdkLength -NewString $replacementVmdkLength
 			Write-Verbose "Updating $Manifest for OVF"
 			$ReplacementOvf = $(Get-Item $OVF).FullName
 			$ReplacementOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ReplacementOvf).Hash.ToLower()
