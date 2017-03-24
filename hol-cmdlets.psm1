@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 February 7 - v1.7.12
+### 2017 March 24 - v1.7.13
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -609,6 +609,12 @@ Function Set-VPodRouterVmdk {
 .NOTE
 	This is low-level mucking with the VMDKs assigned to VMs within an OVF and may result
 	in a well-formed but completely non-functional vApp. Use caution. 
+.NOTE
+	This is a HACK, so I ignore resetting the "populatedSize" because it does not seem to matter. 
+	From the OVF spec:  "...the actual used size of the disk may be specified using the ovf:populatedSize 
+	attribute. The ovf:populatedSize attribute may be an estimate of used disk size but shall not be larger 
+	than ovf:capacity."
+
 #>
 	[CmdletBinding()] 
 	
@@ -626,7 +632,7 @@ Function Set-VPodRouterVmdk {
 		$vPodRouterVmdk = Get-VmdkFromOvf -OVF $OVF -VmName $VmName
 		if( $vPodRouterVmdk.Count -gt 1 ) {
 			Write-Verbose "More than one VMDK returned!"
-			Write-Error "Set-VPodRouterVmdk only handles one disk on the vpodrouter"
+			Write-Error "Set-VPodRouterVmdk handles only one disk on the vpodrouter"
 			return
 		}
 		$vmNameNoSpaces = $VmName -Replace " ","-"
@@ -716,7 +722,7 @@ Function Update-Manifest {
 				Write-Verbose "Hash generated: $ReplacementFileHash"
 			}
 			
-			$backupMF = $mf.FullName + '_BAK-MF'
+			$backupMF = $mf.FullName + '_HOLBAK-MF'
 			try { 
 				Copy-Item -LiteralPath $mf -Destination $backupMF -Force
 			}
@@ -2964,7 +2970,7 @@ Function Update-TextFile {
 		[Switch]$Backup
 	)
 	PROCESS {
-		Write-Verbose "Looking for $FilePath"
+		Write-Verbose "Looking for file $FilePath"
 		$fileExists = Test-Path $FilePath
 
 		#PowerShell hates UTF8 and does it wrong with the BOM header, ALWAYS.
@@ -2972,9 +2978,10 @@ Function Update-TextFile {
 
 		#proceed if parameters are reasonably sane
 		if( $fileExists ) {
+			Write-Verbose "Found file."
 			$mf = Get-Item -Path $FilePath
 			if( $Backup ) {
-				$backupFile = $mf.FullName + '_BAK'
+				$backupFile = $mf.FullName + '_HOLBAK'
 				try { 
 					Write-Verbose "Backing up $FilePath to $backupFile"
 					Copy-Item -LiteralPath $mf -Destination $backupFile -Force
