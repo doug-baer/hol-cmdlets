@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 March 24 - v1.7.13
+### 2017 April 5 - v1.7.16
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -599,11 +599,12 @@ Function Get-VmdkFromOvf {
 Function Set-VPodRouterVmdk {
 <#
 .SYNOPSIS
-	Replace the VPodRouter VMDK in an OVF with another
-	Update the Manifest with the hash of the replacement VMDK
-	Default manifest filename is same as OVF, but with .mf extension instead
-	Default $ReplacementXX values are for a common replacement VMDK
-	Default VmName is 'vpodrouterhol'
+	Make a copy of the provided OVF and MF, using "OC" as a suffix on the base file name
+	Replace the VPodRouter VMDK in the copied OVF with the provided one
+	Update the copied Manifest with the name and hash of the replacement VMDK
+	(Manifest filename is same as OVF, but with .mf extension instead of .ovf)
+	Default $ReplacementXX values provided are for a common replacement VMDK
+	Default VmName for replacement is 'vpodrouterhol'
 	Also updates the name of the VM to $ReplacementVmName
 
 .NOTE
@@ -625,9 +626,15 @@ Function Set-VPodRouterVmdk {
 		$ReplacementVmdk = 'E:\BASE\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk1.vmdk',
 		$ReplacementVmdkHash = 'f88925781b47a1c99bd59919ce69388acd36344a',
 		$ReplacementVmName = 'vpodrouter61',
+		$HashAlgorithm = 'SHA1', #hash algorithm used in the Manifest SHA1 is default
 		[switch]$RemoveBackup
 	)
 	PROCESS {
+		if( !(Test-Path $OVF) ) { 
+			Write-Error "$OVF does not exist"
+			return 
+		}
+		
 		$vPodPath = Split-Path $OVF
 		$vPodRouterVmdk = Get-VmdkFromOvf -OVF $OVF -VmName $VmName
 		if( $vPodRouterVmdk.Count -gt 1 ) {
@@ -635,47 +642,57 @@ Function Set-VPodRouterVmdk {
 			Write-Error "Set-VPodRouterVmdk handles only one disk on the vpodrouter"
 			return
 		}
+
+		#with sanity checks out of the way, make the new copies
+		$newOVF = ($OVF -replace '.ovf$','-OC.ovf')
+		Copy-Item -LiteralPath $OVF -Destination $newOVF
+		$newManifest = ($Manifest -replace '.mf$','-OC.mf')
+		Copy-Item -LiteralPath $Manifest -Destination $newManifest
+		
 		$vmNameNoSpaces = $VmName -Replace " ","-"
+		
 		if( $vPodRouterVmdk -ne $undef ) {
-			Write-Verbose "replacing $vPodRouterVmdk"
-			Write-Verbose "  with $ReplacementVmdk"
-			try {
-				$currentVmdk = Get-Item -Path $vPodRouterVmdk
-				$currentVmdkLength = $currentVmdk.Length
-				$currentVmdkFileName = $currentVmdk.Name
-				$backupVmdkFileName = $currentVmdkFileName + "_" + $vmNameNoSpaces + "_BACKUP"
-				Write-Verbose "Renaming existing file: $vPodRouterVmdk"
-				Rename-Item -Path $vPodRouterVmdk -NewName $backupVmdkFileName -ErrorAction 1
-			}
-			catch {
-				Write-Error "Rename failed for $vPodRouterVmdk to $backupVmdkFileName"
-				return
-			}
 			try {
 				#TODO: check for disk space before attempting copy?
-				Write-Verbose "Copying replacement file"
+				Write-Verbose "Copying OC vpodrouter VMDK file"
 				$replacementVmdkLength = (Get-Item $ReplacementVmdk).Length
-				Copy-Item -LiteralPath $ReplacementVmdk -Destination $vPodRouterVmdk
+				$replacementVmdkName = $ReplacementVmdk | Split-Path -Leaf
+				$replacementVmdkInfo = ("{0}({1})= {2}" -f $HashAlgorithm.ToUpper(),$replacementVmdkName,$ReplacementVmdkHash.ToLower())
+				Copy-Item -LiteralPath $ReplacementVmdk -Destination $vPodPath
 			}
 			catch {
-				Write-Error "File copy failed for $ReplacementVmdk to $vPodRouterVmdk"
+				Write-Error "File copy failed for $ReplacementVmdk to $vPodPath"
 				return
 			}
 			
-			Write-Verbose "Updating $Manifest for VMDK"
-			Update-Manifest -Manifest $Manifest -ReplacementFile $currentVmdk.FullName -ReplacementFileHash $ReplacementVmdkHash 
-			if( $RemoveBackup ) {
-				Remove-Item -Path $backupVmdkFileName -Confirm:$false
-			}
-			
-			#also have to update OVF with length of the replacement file and update the vpodrouter's name
-			Update-TextFile -FilePath $OVF -LinePattern 'vpodrouterhol' -OldString $VmName -NewString $ReplacementVmName
-			Update-TextFile -FilePath $OVF -LinePattern $currentVmdkFileName -OldString $currentVmdkLength -NewString $replacementVmdkLength
+			$vPodRouterVmdkName = $vPodRouterVmdk | Split-Path -Leaf
+			$vPodRouterVmdkLength = (Get-Item $vPodRouterVmdk).Length
 
-			Write-Verbose "Updating $Manifest for OVF"
-			$ReplacementOvf = $(Get-Item $OVF).FullName
-			$ReplacementOvfHash = (Get-FileHash -Algorithm SHA1 -Path $ReplacementOvf).Hash.ToLower()
-			Update-Manifest -Manifest $Manifest -ReplacementFile $ReplacementOvf -ReplacementFileHash $ReplacementOvfHash 
+			Write-Verbose "Updating $newManifest for VMDK"
+			#Append the new VMDK's information to the Manifest
+			Write-Verbose "new VMDK info: $replacementVmdkInfo"
+			Add-Content -Path $newManifest -Value $replacementVmdkInfo
+
+			Write-Verbose "Updating $newOVF with name and disk for vpodrouter"
+			Update-TextFile -FilePath $newOVF -LinePattern 'vpodrouterhol' -OldString $VmName -NewString $ReplacementVmName
+
+			Write-Verbose "`t $newOVF : $vPodRouterVmdkLength to $replacementVmdkLength"
+			Update-TextFile -FilePath $newOVF -LinePattern $vPodRouterVmdkName -OldString $vPodRouterVmdkLength -NewString $replacementVmdkLength
+			Write-Verbose "`t $newOVF : $vPodRouterVmdkName to $replacementVmdkName"
+			Update-TextFile -FilePath $newOVF -LinePattern $vPodRouterVmdkName -OldString $vPodRouterVmdkName -NewString $replacementVmdkName
+
+			Write-Verbose "Updating $newManifest for OVF"
+			$replacementOvf = $(Get-Item $newOVF).FullName
+			Write-Verbose "`t$replacementOvf"
+			$replacementOvfHash = (Get-FileHash -Algorithm $HashAlgorithm -Path $replacementOvf).Hash.ToLower()
+			Write-Verbose "`t$replacementOvfHash"
+			$originalOvfName = $OVF | Split-Path -Leaf
+			$replacementOvfName = $ReplacementOvf | Split-Path -Leaf
+			Write-Verbose "`t$originalOvfName `t => $replacementOvfName"
+
+			Update-TextFile -FilePath $newManifest -LinePattern $originalOvfName -OldString $originalOVFname -NewString $replacementOvfName
+			Update-Manifest -Manifest $newManifest -ReplacementFile $replacementOvf -ReplacementFileHash $replacementOvfHash 
+			Update-Manifest -Manifest $newManifest -ReplacementFile $replacementOvf -ReplacementFileHash $replacementOvfHash 
 			
 		}
 		else {
@@ -683,7 +700,7 @@ Function Set-VPodRouterVmdk {
 		}
 	}
 } #Set-VPodRouterVmdk
-
+#Set-VPodRouterVmdk -OVF E:\Temp\HOL-1731-v0.25\HOL-1731-v0.25.ovf -Manifest E:\Temp\HOL-1731-v0.25\HOL-1731-v0.25.mf -Verbose
 
 Function Update-Manifest {
 <#
@@ -722,7 +739,7 @@ Function Update-Manifest {
 				Write-Verbose "Hash generated: $ReplacementFileHash"
 			}
 			
-			$backupMF = $mf.FullName + '_HOLBAK-MF'
+			$backupMF = $mf.FullName + '_BAK-MF'
 			try { 
 				Copy-Item -LiteralPath $mf -Destination $backupMF -Force
 			}
@@ -1148,7 +1165,7 @@ Function Import-VcdMedia {
 	)
 	PROCESS {
 
-		$mediaPath = Join-Path $LibPath $($MediaName + "." + $MediaType)
+		$mediaPath = Join-Path $LibPath $MediaName
 
 		#test path, bail if not found
 		if( !(Test-Path $mediaPath) ) {
@@ -1204,7 +1221,7 @@ Function Import-VcdMedia {
 		Do {
 			$retryCount += 1
 			Write-Host "`tRunning ovftool (try $retryCount of $maxRetries) for $vp with options: $opt"
-			ovftool $opt $src $tgt
+			ovftool $opt --targetType=vCloud --sourceType=$MediaType $src $tgt
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
 		
@@ -1219,8 +1236,8 @@ Function Import-VcdMedia {
 
 Function Export-VcdMedia {
 <#
-	Takes an ISO Name, Catalog, "cloud key", and a path to the local Media Library
-	Imports the ISO( or OVA) located at <library>\ISONAME.<TYPE>
+	Takes an item Name, Catalog, "cloud key", and a path to the local Media Library
+	Exports the media item (ISO or OVA) to the library located at <library>\NAME.<TYPE>
 	Will attempt to resume until successful completion (or 20x)
 #>
 	[CmdletBinding()]
@@ -1238,7 +1255,7 @@ Function Export-VcdMedia {
 	)
 	PROCESS {
 
-		$mediaPath = Join-Path $LibPath $($MediaName + "." + $MediaType)
+		$mediaPath = Join-Path $LibPath $MediaName
 
 		#test path, bail if found
 		if( Test-Path $mediaPath ) {
@@ -1264,7 +1281,7 @@ Function Export-VcdMedia {
 		} else {
 			$type = 'media'
 		}
-		
+
 		if( $Catalog -eq "" ) {
 			Write-Host "`tExporting from default catalog: $($catalogs[$k])"
 			$cat = $catalogs[$k]
@@ -1279,7 +1296,7 @@ Function Export-VcdMedia {
 			$OvDC = $ovdcs[$k] 
 		}
 	
-		$src = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp.$mediaType"
+		$src = "vcloud://$un" + ':' + $pw + '@' + $vcds[$k] + ':443/?org=' + $orgs[$k] + '&vdc=' + $OvDC + "&catalog=$cat&$type=$vp"
 
 		Write-Verbose "Source is: catalog: $cat in $($vcds[$k]) org: $($orgs[$k]) ovdc: $OvDC"
 
@@ -1294,7 +1311,7 @@ Function Export-VcdMedia {
 		Do {
 			$retryCount += 1
 			Write-Host "`tRunning ovftool (try $retryCount of $maxRetries) to $tgt with options: $opt"
-			ovftool $opt $src $tgt
+			ovftool $opt --targetType=$mediaType --sourceType=vCloud $src $tgt
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $maxRetries) )
 		
@@ -2981,7 +2998,7 @@ Function Update-TextFile {
 			Write-Verbose "Found file."
 			$mf = Get-Item -Path $FilePath
 			if( $Backup ) {
-				$backupFile = $mf.FullName + '_HOLBAK'
+				$backupFile = $mf.FullName + '_BAK'
 				try { 
 					Write-Verbose "Backing up $FilePath to $backupFile"
 					Copy-Item -LiteralPath $mf -Destination $backupFile -Force
