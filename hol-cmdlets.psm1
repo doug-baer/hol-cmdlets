@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 April 5 - v1.7.16
+### 2017 April 5 - v1.7.17
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -313,6 +313,7 @@ Function Set-CleanOvf {
 	PARAM(
 		#Path to vPod library. Will be read recursively for *.OVF files
 		$LibraryPath = $(throw "need -LibraryPath"),
+		$HashAlgorithm = "SHA256",
 		$Threshold = 60
 	)
 	PROCESS {
@@ -324,7 +325,7 @@ Function Set-CleanOvf {
 			$mf = $ovf.FullName.Replace('.ovf','.mf')
 			if( Test-Path $mf ) { 
 				$manifestExists = $true
-				$ovfHash = (Get-FileHash -Algorithm SHA1 -Path $ovf.FullName).Hash.ToLower()
+				$ovfHash = (Get-FileHash -Algorithm $HashAlgorithm -Path $ovf.FullName).Hash.ToLower()
 			}
 			#See if this has already been run (don't clobber backup!)
 			$backupOVF = $ovf.fullName + "_BAK"
@@ -626,7 +627,7 @@ Function Set-VPodRouterVmdk {
 		$ReplacementVmdk = 'E:\BASE\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk1.vmdk',
 		$ReplacementVmdkHash = 'f88925781b47a1c99bd59919ce69388acd36344a',
 		$ReplacementVmName = 'vpodrouter61',
-		$HashAlgorithm = 'SHA1', #hash algorithm used in the Manifest SHA1 is default
+		$HashAlgorithm = 'SHA256', #hash algorithm used in the Manifest SHA256 is default on Windows 2016?
 		[switch]$RemoveBackup
 	)
 	PROCESS {
@@ -718,7 +719,8 @@ Function Update-Manifest {
 	PARAM(
 		$Manifest = $(throw "need -Manifest <full_path_to_file>"),
 		$ReplacementFile = $(throw "need -ReplacementFile <full_path_to_file>"),
-		$ReplacementFileHash = ''
+		$ReplacementFileHash = '',
+		$HashAlgorithm = "SHA256"
 	)
 	PROCESS {
 		$manifestExists = ( ($Manifest -match ".mf$") -and (Test-Path $Manifest) )
@@ -735,7 +737,7 @@ Function Update-Manifest {
 			
 			if( $ReplacementFileHash -eq '' ) {
 				Write-Verbose "Please stand by, generating hash for $ReplacementFile"
-				$ReplacementFileHash = (Get-FileHash -Algorithm SHA1 -Path $vmdk.FullName).Hash.ToLower()
+				$ReplacementFileHash = (Get-FileHash -Algorithm $HashAlgorithm -Path $vmdk.FullName).Hash.ToLower()
 				Write-Verbose "Hash generated: $ReplacementFileHash"
 			}
 			
@@ -751,7 +753,7 @@ Function Update-Manifest {
 			(Get-Content $mf) | % { 
 				$line = $_
 				# looks like "SHA1(2016-vPodRouter-v6.1-disk1.vmdk)= e7f0ea921455cd9ba5a161392c2c30355843eeac"
-				if( $line -match "SHA1\($replacementFileName\)\= ([0-9a-f]*)" ) {
+				if( $line -match "$HashAlgorithm\($replacementFileName\)\= ([0-9a-f]*)" ) {
 					$line = $line -replace $matches[1],$ReplacementFileHash
 				}
 				$line
@@ -772,16 +774,16 @@ Function Update-Manifest {
 
 Function Get-VmdkHashes {
 <#
-	Create a list of SHA1 hashes for the VMDKs at a given path
+	Create a list of SHA256 hashes for the VMDKs at a given path
 	Write the list to vpodName-<SITENAME>.hash at the root of the VPODPATH
 	...And compare against values in Manifest (victim of scope creep)
-	HashAlgorithm defaults to SHA1, which is used by ovftool in the Manifest file
+	HashAlgorithm defaults to SHA256, which is used by ovftool in the Manifest file
 	Requires Powershell 4.0 or higher
 #>
 	PARAM(
 		$VpodPath = $(throw "need -VPodPath"),
 		$SiteName = 'LOCAL',
-		$HashAlgorithm = 'SHA1' #one of the supported types: MD5, SHA1, SHA256, SHA384, SHA512
+		$HashAlgorithm = 'SHA256' #one of the supported types: MD5, SHA1, SHA256, SHA384, SHA512
 	)
 	PROCESS {
 		Write-Host -Fore Green "$(Get-Date) Started creating hashes for $VpodPath"
@@ -809,10 +811,10 @@ Function Get-VmdkHashes {
 		$vmdkHashes = @{}
 		Import-CSV $outputFile | % { $vmdkHashes.Add($_.FileName,$_.Hash) }
 
-		#Read the Manifest file into a hashtable: keys are filenames, values are SHA1 hashes
+		#Read the Manifest file into a hashtable: keys are filenames, values are SHA256 hashes
 		if( Test-Path $manifestFile ) {
 			$manifestHashes = @{}
-			$regex = '\bSHA1\(([A-Z0-9\-\.a-z]+)\)=\ ([a-f0-9]+)\b'
+			$regex = '\bSHA256\(([A-Z0-9\-\.a-z]+)\)=\ ([a-f0-9]+)\b'
 			Write-Host -Fore Green "$(Get-Date) Loading hashes from Manifest $manifestFile"
 			$count = 0
 			Select-String -Path $manifestFile -Pattern $regex -AllMatches | % { $_.Matches } | % { $_.Groups } | % {
