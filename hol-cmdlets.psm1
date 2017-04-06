@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 April 5 - v1.7.17
+### 2017 April 5 - v1.7.18
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -105,7 +105,7 @@ if( !(Test-Path $DEFAULT_OVFTOOLPATH) ) {
 	Return
 } else {
 	try {
-		New-Alias -Name ovftool -Value $DEFAULT_OVFTOOLPATH -ErrorAction 0
+		New-Alias -Name ovftool -Value $DEFAULT_OVFTOOLPATH -Force -ErrorAction 0
 	}
 	catch {
 		Get-Alias ovftool
@@ -1627,7 +1627,7 @@ Function Export-Vpod {
 		$User = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().UserName } else{ $DEFAULT_CLOUDUSER } ),
 		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } ),
 		$MaxRetries = 20,
-		$Options = '--exportFlags=preserveIdentity --allowExtraConfig',
+		$Options = '--exportFlags=preserveIdentity --allowExtraConfig --targetType=OVF --sourceType=vCloud --shaAlgorithm=SHA256 --X:connectionRetryCount=20',
 		[Switch]$Print
 	)
 	PROCESS {
