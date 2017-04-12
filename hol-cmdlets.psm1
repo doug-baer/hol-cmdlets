@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 April 5 - v1.7.18
+### 2017 April 12 - v1.7.19
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -1598,7 +1598,7 @@ Function Import-Vpod {
 		Do {
 			$retryCount += 1
 			Write-Host "`tRunning ovftool (try $retryCount of $MaxRetries) for $vp with options: $opt"
-			Invoke-Expression -Command $("ovftool $opt $src '" + $tgt +"'")
+			Invoke-Expression -Command $("ovftool $opt '" + $src + "' '" + $tgt + "'")
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $MaxRetries) )
 		
@@ -1668,7 +1668,7 @@ Function Export-Vpod {
 		Do {
 			$retryCount += 1
 			Write-Host "`tRunning ovftool (try $retryCount of $MaxRetries)"
-			Invoke-Expression -Command $("ovftool $opt '" + $src + "' $tgt")
+			Invoke-Expression -Command $("ovftool $opt '" + $src + "' '" + $tgt + "'")
 			Sleep -sec 60
 		} Until ( ($lastexitcode -eq 0) -or ($retryCount -gt $MaxRetries) )
 
