@@ -1,4 +1,4 @@
-# Version 1.7.2 - 30 January 2017
+# Version 1.8.0 - 18 May 2017
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -115,17 +115,6 @@ Function Start-HolVpodExportDaemon {
 				Return
 			}
 		}
-		# need PowerCLI for shadowing -- only in the spawned sessions
-<#
-		if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
-			try {
-				. 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
-			}
-			catch {
-				$NoPowerCLI = $true
-			}
-		}
-#>
 		# Ensure parameter sanity
 		try { 
 			Get-Item $WorkingDir -ErrorAction "Stop" | out-Null
@@ -293,7 +282,6 @@ Function Start-HolVpodExportDaemon {
 	##################### PARDON OUR DUST #####################
 	# Future development: look at decoupling import from shadowing
 	# Shadow Waiter can look at mailbox for work: "VPODNAME_IMPORTED" filenames
-	# curently, this code may have some issues with PowerCLI v6.0+
 	
 					# Once imports begin, "shadow waiter" can be kicked off
 					$msg = "$(Get-Date) $podName - shadows would be created here"
@@ -307,9 +295,8 @@ Function Start-HolVpodExportDaemon {
 								$msg = "$(Get-Date) $podName - Shadowing in $cloudKey"
 								Out-File -FilePath $currentFile.FullName -InputObject $msg -Append
 $mycmd = '
-	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
 	Import-Module "E:\Scripts\hol-cmdlets.psd1"
-	Write-host "Initialized PowerCLI, loaded HOL modules"
+	Write-host "loaded HOL modules"
 	Get-Module VMware*
 	$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
 	Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 
@@ -555,7 +542,6 @@ Function Start-HolVpodImportDaemon {
 								$msg = "$(Get-Date) $podName - Shadowing in $cloudKey"
 								Out-File -FilePath $currentFile.FullName -InputObject $msg -Append
 $mycmd = '
-	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) { . "C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1" }
 	Import-Module "E:\Scripts\hol-cmdlets.psd1"
 		$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
 		Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 

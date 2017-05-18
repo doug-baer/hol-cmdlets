@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 April 12 - v1.7.19
+### 2017 May 18 - v1.8.0
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -625,7 +625,7 @@ Function Set-VPodRouterVmdk {
 		$Manifest = ($OVF -replace '.ovf$','.mf'),
 		$VmName = 'vpodrouterhol',
 		$ReplacementVmdk = 'E:\BASE\2016-vPodRouter-v6.1\2016-vPodRouter-v6.1-disk1.vmdk',
-		$ReplacementVmdkHash = 'f88925781b47a1c99bd59919ce69388acd36344a',
+		$ReplacementVmdkHash = 'af98903d515594e39ae1b901e2c6e427aee317bee38ebc5e8a72083321d0078f',
 		$ReplacementVmName = 'vpodrouter61',
 		$HashAlgorithm = 'SHA256', #hash algorithm used in the Manifest SHA256 is default on Windows 2016?
 		[switch]$RemoveBackup
@@ -2911,6 +2911,17 @@ Function Get-MountPointFreeSpace {
 	$volumes | Select SystemName, Label, $TotalGB, $FreeGB, $FreePerc | Format-Table -AutoSize
 } #Get-MountPointFreeSpace
 
+Function Get-DirectorySize {
+	PARAM(
+		$Path = $(throw "need -Path")
+	)
+	PROCESS {
+		Get-Item $Path | % {
+			 $colItems = (Get-ChildItem $($_.FullName) -recurse | Measure-Object -property length -sum)
+			 "{0} is {1:N2}" -f $_.Name, ($colItems.sum / 1GB) + " GB"
+		}
+	}
+} #Get-DirectorySize
 
 Function Send-Email {
 <#
@@ -2958,13 +2969,13 @@ Function Test-PowerCLI {
 
 Function Import-PowerCLI {
 <#
-	WORK IN PROGRESS
-	Import PowerCLI commands (v6.5)
-	!! Path changed as of 6.5: "PowerCLI" vs. "vSphere PowerCLI")
+	Import PowerCLI commands (v6.5.1)
+	... not really necessary since "Import-Module VMware.PowerCLI" will do it and modules will auto-load when needed with this version
 #>
 	if ( !(Get-Module -Name VMware.VimAutomation.Core -ErrorAction SilentlyContinue) ) {
-	. 'C:\Program Files (x86)\VMware\Infrastructure\PowerCLI\Scripts\Initialize-PowerCLIEnvironment.ps1'
+	Import-Module VMware.PowerCLI
 	}
+	
 } #Import-PowerCLI
 
 
