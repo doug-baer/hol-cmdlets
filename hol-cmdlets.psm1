@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 May 18 - v1.8.0
+### 2017 June 17 - v1.8.1
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -1452,6 +1452,7 @@ Function Add-InternetMetadata {
 		Also handle special case for vCloud Air external network naming
 	Update 08/2015 to allow specification of catalog name 
 	Update 07/2016 to allow specification of "user" orgvdc pattern (OC changed it!)
+	Update 06/2017 to account for new OC standard orgVDC network names: "<orgvdcName>-o"
 
 #>
 	PARAM (
@@ -1465,12 +1466,13 @@ Function Add-InternetMetadata {
 		$vAppNetName = ($networkConfig | where { $_.NetworkName -like "vAppNet*"}).NetworkName
 		if( $vAppNetName -ne $null ) {
 			New-CIMetaData -CIObject $vp -Key 'vappNetwork1' -Value $vAppNetName
-			#grab the first user OrgVdc
+			#handle the new (2017) OneCloud Standard Naming
+			$orgName = (Get-Org)[0].Name
+			$netName = "$orgName-o"
+			#sanity check for legacy clouds
+			#grab the first user OrgVdc's first org network
 			$nn = (get-orgvdc -Name $UserOrgVdcPattern)[0].ExtensionData.AvailableNetworks.Network.name
-			if( $nn -like 'VMware-HOL*' ) {
-				#this is vCloud Air "p11vX"
-				$netName = "VMware-HOL"
-			} Else {
+			if( $nn -notmatch "$netName*") { 
 				$netName = $($nn.substring(0,$nn.length -1))
 			}
 			#assign the NEE "name pattern" to the network, less one digit (the last one)
