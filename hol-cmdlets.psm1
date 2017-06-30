@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 June 17 - v1.8.1
+### 2017 June 28 - v1.8.2
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -303,6 +303,11 @@ Function Set-CleanOvf {
 	* Print current VM name to console when in Verbose mode
 	* Changed encoding to UTF8 all around
 	* Now uses Update-Manifest function
+	
+	* Added change to OVF transport for vpodrouterHOL
+		<ovf:VirtualHardwareSection ovf:transport="">
+		to 
+		<ovf:VirtualHardwareSection ovf:transport="com.vmware.guestInfo">
 
 .EXAMPLE
 	Set-CleanOvf -LibraryPath E:\HOL-Library -Threshold 65 -Verbose
@@ -469,6 +474,12 @@ Function Set-CleanOvf {
 					elseif( $line -match 'vmw:key="backing.diskMode" vmw:value="independent_nonpersistent"' ) {
 						# NEW for 2017 - remove non-persistent disk setting
 						Write-Verbose "`tignoring nonpersistent disk on VM $currentVmName"
+						$line
+					}
+					elseif( ($line -match 'ovf:VirtualHardwareSection ovf:transport=""') -and ($currentVmName -eq "vpodrouterHOL") ) {
+						#If missing, configure the OVF transport for the HOL vpodrouter
+						$line = $line -replace 'transport=""','transport="com.vmware.guestInfo"' 
+						Write-Verbose "`tsetting OVF transport to com.vmware.guestInfo on VM $currentVmName"
 						$line
 					}
 					else {
