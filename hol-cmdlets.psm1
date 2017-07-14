@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 June 28 - v1.8.2
+### 2017 July 13 - v1.8.5
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -464,11 +464,16 @@ Function Set-CleanOvf {
 						Write-Verbose "`tun-setting customize on VM $currentVmName"
 						$line
 					}
-					elseif( $line -match 'vcloud:ipAddressingMode="POOL"' ) {
-						#POOL ip addresses to DHCP
-						$line = $line -replace '<rasd:Connection vcloud:ipAddress="[0-9.]+" vcloud:ipAddressingMode="POOL"' , '<rasd:Connection vcloud:ipAddressingMode="DHCP"'
-						$setPool = $true
-						Write-Verbose "`tsetting DHCP on VM $currentVmName"
+					elseif( ($line -match 'vAppNet-') ) {
+						$line = [regex]::replace($line,"(vAppNet-){2,}","vAppNet-")
+						Write-Verbose "`tcorrecting reduplicated 'vAppNet' in vApp network name"
+		
+						if( $line -match 'vcloud:ipAddressingMode="POOL"' ) {
+							#POOL ip addresses to DHCP
+							$line = $line -replace '<rasd:Connection vcloud:ipAddress="[0-9.]+" vcloud:ipAddressingMode="POOL"' , '<rasd:Connection vcloud:ipAddressingMode="DHCP"'
+							$setPool = $true
+							Write-Verbose "`tsetting DHCP on VM $currentVmName"
+						}
 						$line
 					}
 					elseif( $line -match 'vmw:key="backing.diskMode" vmw:value="independent_nonpersistent"' ) {
@@ -948,21 +953,24 @@ Function Add-CIVAppShadows {
 
 				#sleep between checks
 				if( $shadows.Count -gt 0 ) {
-					Write-Verbose "Sleeping 120 sec at $(Get-Date)"
+					Write-Verbose "Sleeping $SleepTime sec at $(Get-Date)"
 					Sleep -sec $SleepTime
 				}
 			}
 			Write-Host -fore Green "Finished shadows for $($vApp.Name) at $(Get-Date)"
+			
 			if( $Cleanup ) {
-				Write-Host "Cleaning up shadows"
-				$shadows = @{}
+				Write-Host "Cleaning up shadow vApps at $(Get-Date)"
+				$shadowList = @()
 				foreach( $shadow in $(Get-CIVApp $shadowPattern) ) {
 					if( $shadow.Status -ne "PoweredOff" ) {
 						Write-Host -BackgroundColor Magenta -ForegroundColor Black "Bad Shadow:" $shadow.Name $shadow.Status
+					} else {
+						#only remove the successful shadow VM deployments
+						$shadowList += $shadow
 					}
-					$shadowList += $shadow
 				}
-				Write-Host "Cleaned up shadows"
+				Write-Host "Cleaned up good shadow vApps at $(Get-Date)"
 				$shadowList | Remove-CIVapp -Confirm:$false
 			}
 		}
@@ -993,7 +1001,7 @@ Function Add-CIVAppShadowsWait {
 		Sleep -sec $SleepTime
 		$vApp = Get-civapptemplate $vApp.name -catalog $vApp.catalog
 		Write-Verbose "Calling Add-CIVAppShadows"
-		Add-CIVAppShadows -OrgVDCs $OrgVDCs -vApps $vApp
+		Add-CIVAppShadows -OrgVDCs $OrgVDCs -vApps $vApp -Cleanup
 		Write-Verbose "Finishing Add-CIVAppShadowsWait"
 	}
 } #Add-CIVAppShadowsWait
@@ -1017,7 +1025,7 @@ Function Add-ShadowBatch {
 	$vpod = Get-ChildItem $LIBRARY -Filter $filter
 	if( $vpod.Count -gt 0 ) {
 		$vpodName = $vpod[0].Name
-		Add-CIVAppShadows -orgvdcs $ov -vapps $(get-civapptemplate $vpodName)
+		Add-CIVAppShadows -orgvdcs $ov -vapps $(get-civapptemplate $vpodName) -Cleanup
 	} else {
 		Write-Host "$vpod matching $filter not found in $LIBRARY"
 	}
@@ -1538,6 +1546,8 @@ Function Import-Vpod {
 	Imports the OVF located at <library>\vPodName\vPodName.ovf
 	Will attempt to resume until successful completion (or 5x) -- Imports should NOT be failing
 	Written for OVFTOOL 3.x ... works with 4.1.0
+	
+	June 2017 - Added $CloudId to pre-specify the "cloud" field on HOL vpods used to identify the hosting cloud
 #>
 	[CmdletBinding()]
 	PARAM (
@@ -1549,7 +1559,8 @@ Function Import-Vpod {
 		$Password = $(if( $creds.ContainsKey($Key) ){ $creds[$Key].GetNetworkCredential().Password } else{ $DEFAULT_CLOUDPASSWORD } ),
 		$AlternateName = '',
 		$Options = '--allowExtraConfig',
-		$MaxRetries = 5
+		$MaxRetries = 5,
+		$CloudId = $Key
 	)
 	PROCESS {
 
@@ -1602,7 +1613,7 @@ Function Import-Vpod {
 
 		#Options ( additional options to OVFtool like '--overwrite')
 		#PS doesn't seem to like passing multiple params to ovftool..
-		$opt = $Options
+		$opt = $Options + " --prop:cloud=$CloudId"
 
 		Write-Verbose "$opt from $src to $($vcds[$k]) org: $($orgs[$k]) ovdc: $($ovdcs[$k]) catalog: $cat"
 
