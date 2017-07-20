@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 July 13 - v1.8.5
+### 2017 July 20 - v1.8.6
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -2237,6 +2237,7 @@ Function Show-CloudPopulation {
 	Show the vapp template population of each cloud in the specified set
 	Uses Show-VpodVersions
 	Takes configuration from XML file
+	Always calls Show-VpodVersions with the "UseCloudCatalogDefaultCatalogs" option
 #>
 	[CmdletBinding()]
 
@@ -2283,10 +2284,10 @@ Function Show-CloudPopulation {
 
 			$theClouds | % { Connect-Cloud -k $_ }
 			if( $ValidateTemplates ) {
-				Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter -ValidateTemplates
+				Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter -ValidateTemplates -UseCloudCatalogDefaultCatalogs
 			}
 			else {
-				Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter
+				Show-VpodVersions -Clouds $theClouds -Catalog $CatalogName -LibPath $LibPath -VpodFilter $VpodFilter -UseCloudCatalogDefaultCatalogs
 			}
 			Disconnect-CiServer * -Confirm:$false
 		}
@@ -2308,7 +2309,8 @@ Function Show-VpodVersions {
 		$Catalog = $DEFAULT_TARGETCLOUDCATALOG,
 		$LibPath = $DEFAULT_LOCALLIB,
 		$VpodFilter = '*',
-		[Switch]$ValidateTemplates
+		[Switch]$ValidateTemplates,
+		[Switch]$UseCloudCatalogDefaultCatalogs
 	)
 	BEGIN {
 		#Setup variables to collect the data
@@ -2334,6 +2336,12 @@ Function Show-VpodVersions {
 		foreach( $cloud in $Clouds ) {
 			$cloudName = (Get-CloudInfoFromKey -Key $cloud)[0]
 			$orgName = (Get-CloudInfoFromKey -Key $cloud)[1]
+			
+			#option to use per-cloud default catalogs (corner case... catalogs should be named the same across all clouds!)
+			if( $UseCloudCatalogDefaultCatalogs ) {
+				$Catalog = $(if( $catalogs.ContainsKey($cloud) ){ $catalogs[$cloud] } else{ $DEFAULT_TARGETCLOUDCATALOG } ) 
+				Write-Host "`tchecking catalog $Catalog in $cloud"
+			}
 			
 			try {
 				$catSrc = Get-Catalog $Catalog -Server $cloudName -Org $orgName  -ErrorAction 1
