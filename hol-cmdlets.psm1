@@ -2,7 +2,7 @@
 ### HOL Administration Cmdlets
 ### -Doug Baer
 ###
-### 2017 July 20 - v1.8.6
+### 2017 July 21 - v1.8.7
 ###
 ### Import-Module .\hol-cmdlets.psd1
 ### Get-Command -module hol-cmdlets
@@ -884,6 +884,8 @@ Function Add-CIVAppShadows {
 	
 	Waits for the last of the vApps to finish deploying before moving to the next template
 
+	NOTE: 21 Jul 2017 - added RunAsync switch to handle rapid-fire, unverified shadows for NL01
+
 	.EXAMPLE
 	$vApps = @()
 	$vAppNames | % { $vApps += (Get-CIVAppTemplate $_ -Catalog MY_CATALOG) } 
@@ -897,7 +899,8 @@ Function Add-CIVAppShadows {
 		$vApps = $(throw "need -vApps"), 
 		$OrgVDCs = $(throw "need -OrgVDCs"),
 		$SleepTime = 120,
-		[Switch]$Cleanup
+		[Switch]$Cleanup,
+		[Switch]$RunAsync
 	)
 	
 	PROCESS {
@@ -929,37 +932,40 @@ Function Add-CIVAppShadows {
 				Write-Host "==> Creating $shadowName"
 			}
 			
-			#pulling the "Status" from the object returned by New-vApp isn't right. This works.
-			$shadows = @{}
-			$shadowPattern = $($vApp.Name) + "_shadow_*"
-			Write-Verbose "Looking for $shadowPattern"
-			foreach( $shadow in $(Get-CIVApp $shadowPattern) ) { 
-				$shadows.Add( $shadow.Name , $(Get-CIView -CIObject $shadow) )
-			}
-
-			#wait for all shadows of this template to complete before starting on next one
-			while( $shadows.Count -gt 0 ) {
-				#working around a Powershell quirk related to enumerating and modification
-				$keys = $shadows.Clone().Keys
-
-				foreach( $key in $keys ) {
-					$shadows[$key].UpdateViewData()		
-					if( $shadows[$key].Status -ne 0 ) { 
-						#has completed (status=8 is good), remove it from the waitlist
-						Write-Host "==> Finished $key with status $($shadows[$key].Status), $($shadows.count - 1) to go." 
-						$shadows.Remove($key)
-					}
+			if( -Not $RunAsync ) {
+				#pulling the "Status" from the object returned by New-vApp isn't right. This works.
+				$shadows = @{}
+				$shadowPattern = $($vApp.Name) + "_shadow_*"
+				Write-Verbose "Looking for $shadowPattern"
+				foreach( $shadow in $(Get-CIVApp $shadowPattern) ) { 
+					$shadows.Add( $shadow.Name , $(Get-CIView -CIObject $shadow) )
 				}
 
-				#sleep between checks
-				if( $shadows.Count -gt 0 ) {
-					Write-Verbose "Sleeping $SleepTime sec at $(Get-Date)"
-					Sleep -sec $SleepTime
+				#wait for all shadows of this template to complete before starting on next one
+				while( $shadows.Count -gt 0 ) {
+					#working around a Powershell quirk related to enumerating and modification
+					$keys = $shadows.Clone().Keys
+
+					foreach( $key in $keys ) {
+						$shadows[$key].UpdateViewData()		
+						if( $shadows[$key].Status -ne 0 ) { 
+							#has completed (status=8 is good), remove it from the waitlist
+							Write-Host "==> Finished $key with status $($shadows[$key].Status), $($shadows.count - 1) to go." 
+							$shadows.Remove($key)
+						}
+					}
+
+					#sleep between checks
+					if( $shadows.Count -gt 0 ) {
+						Write-Verbose "Sleeping $SleepTime sec at $(Get-Date)"
+						Sleep -sec $SleepTime
+					}
 				}
 			}
 			Write-Host -fore Green "Finished shadows for $($vApp.Name) at $(Get-Date)"
 			
-			if( $Cleanup ) {
+			#Cleanup does not work with RunAsync ... shadows are not yet finished
+			if( (-Not $RunAsync) -and $Cleanup ) {
 				Write-Host "Cleaning up shadow vApps at $(Get-Date)"
 				$shadowList = @()
 				foreach( $shadow in $(Get-CIVApp $shadowPattern) ) {
