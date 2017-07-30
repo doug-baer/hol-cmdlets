@@ -1,4 +1,4 @@
-# Version 1.8.0 - 18 May 2017
+# Version 1.8.1 - 30 July 2017
 
 $holSettingsFile = 'E:\scripts\hol_cmdlets_settings.xml'
 
@@ -299,7 +299,7 @@ $mycmd = '
 	Write-host "loaded HOL modules"
 	Get-Module VMware*
 	$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
-	Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 
+	Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' | Where { $_.Enabled -eq $true } } 
 	Catch { Write-Host "No matching OrgVdc" ; Return }
 	If($orgVdcs) { 
 		Try { 
@@ -544,7 +544,7 @@ Function Start-HolVpodImportDaemon {
 $mycmd = '
 	Import-Module "E:\Scripts\hol-cmdlets.psd1"
 		$vcd = Connect-CiServer -Server ' + $cloudHost + ' -Org ' + $cloudOrg + ' -User ' + $cloudUser + ' -Password ' + $cloudPassword + '
-		Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' } 
+		Try { $orgVdcs = Get-OrgVdc ' + $OvdcFilter + ' | Where { $_.Enabled -eq $true } } 
 		Catch { Write-Host "No matching OrgVdc" ; Return }
 		If($orgVdcs) { 
 			Try { 
